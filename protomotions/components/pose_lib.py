@@ -56,11 +56,31 @@ It leverages PyTorch for efficient computation on GPUs or CPUs.
 - The MuJoCo `qpos` layout is assumed: [root_pos(3), root_quat_wxyz(4), joint_angles(...)].
 """
 
+# Workaround for MuJoCo DLL loading issue on Windows.
+# MuJoCo's bundled plugins cause DLL conflicts with Isaac Lab's OpenGL context.
+# We patch ctypes.CDLL to skip loading problematic DLLs before importing mujoco.
+# See: https://github.com/google-deepmind/mujoco/issues/1164
+import os
+import sys
+if sys.platform == "win32":
+    import ctypes
+    _original_cdll_init = ctypes.CDLL.__init__
+
+    def _patched_cdll_init(self, name, *args, **kwargs):
+        # Skip loading MuJoCo plugin DLLs that cause conflicts
+        if name and "mujoco" in name.lower() and "plugin" in name.lower():
+            # Create a dummy handle to prevent the error
+            self._handle = None
+            self._name = name
+            return
+        return _original_cdll_init(self, name, *args, **kwargs)
+
+    ctypes.CDLL.__init__ = _patched_cdll_init
+
 import torch
 import numpy as np
 from dm_control import mjcf
 import logging
-import sys
 from typing import Dict, Tuple, Optional, List
 from protomotions.utils.config_builder import ConfigBuilder
 import re

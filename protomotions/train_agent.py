@@ -728,11 +728,17 @@ def main():
     from protomotions.utils.fabric_config import FabricConfig
     from lightning.fabric import Fabric
 
+    # Determine strategy based on device count
+    # On Windows with single GPU, DDP fails because NCCL is missing.
+    # We use "auto" strategy for single device to avoid this.
+    strategy = "auto" if args.ngpu == 1 and args.nodes == 1 else "ddp"
+
     fabric_config = FabricConfig(
         devices=args.ngpu,
         num_nodes=args.nodes,
         loggers=loggers,
         callbacks=callbacks,
+        strategy=strategy,
     )
     fabric: Fabric = Fabric(**fabric_config.to_dict())
     fabric.launch()

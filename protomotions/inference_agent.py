@@ -13,6 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# Workaround for MuJoCo DLL loading issue on Windows when using Isaac Lab.
+# MuJoCo's bundled plugins cause DLL conflicts with Isaac Lab's OpenGL context.
+# We patch ctypes.CDLL to skip loading problematic DLLs before importing mujoco.
+# See: https://github.com/google-deepmind/mujoco/issues/1164
+import os
+import sys
+if sys.platform == "win32":
+    import ctypes
+    _original_cdll_init = ctypes.CDLL.__init__
+
+    def _patched_cdll_init(self, name, *args, **kwargs):
+        # Skip loading MuJoCo plugin DLLs that cause conflicts
+        if name and "mujoco" in name.lower() and "plugin" in name.lower():
+            self._handle = None
+            self._name = name
+            return
+        return _original_cdll_init(self, name, *args, **kwargs)
+
+    ctypes.CDLL.__init__ = _patched_cdll_init
+
 """Test trained agents and visualize their behavior.
 
 This script loads trained checkpoints and runs agents in the simulation environment
@@ -268,10 +289,14 @@ def main():
             scene_lib_config,
         )
 
-    # Create fabric config for inference (simplified)
+    # Create fabric config for inference (single device, no distributed training)
+    from lightning.fabric.strategies import SingleDeviceStrategy
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     fabric_config = FabricConfig(
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices=1,
         num_nodes=1,
+        strategy=SingleDeviceStrategy(device=device),
         loggers=[],  # No loggers needed for inference
         callbacks=[],  # No callbacks needed for inference
     )

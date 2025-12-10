@@ -529,7 +529,9 @@ class RobotState(BaseBatchedState):
 
         self.translate(min_height_vec)
 
-    def fix_height_per_frame(self, z_up: bool = True, height_offset: float = 0.0):
+    def fix_height_per_frame(
+        self, z_up: bool = True, height_offset: float = 0.0, min_clamp: float = -0.02
+    ):
         """
         Fix the height of the robot state per frame so that each frame is above the ground.
         Only translates frames that are below the ground, leaving frames already above ground untouched.
@@ -538,6 +540,8 @@ class RobotState(BaseBatchedState):
         Args:
             z_up (bool): Whether Z axis is up (True) or Y axis is up (False). Default is True.
             height_offset (float): Minimum height above ground. Default is 0.0.
+            min_clamp (float): Minimum value for the lift amount. Default is -0.02.
+                               Set to a large negative value (e.g. -10.0) to allow pulling down floating motions.
         """
         axis = 2 if z_up else 1
         body_heights = self.rigid_body_pos[..., axis]  # [batch_size, num_bodies]
@@ -545,7 +549,7 @@ class RobotState(BaseBatchedState):
 
         # Calculate how much each frame needs to be lifted (0 if already above ground)
         lift_amounts = torch.clamp(
-            height_offset - min_heights_per_frame, min=-0.02
+            height_offset - min_heights_per_frame, min=min_clamp
         )  # [batch_size]
 
         # Create translation vectors for each frame

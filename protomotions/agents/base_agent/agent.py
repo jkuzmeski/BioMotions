@@ -310,33 +310,44 @@ class BaseAgent:
         log.info(f"Saved checkpoint: {save_dir / checkpoint_name}")
 
         # Save environment checkpoint for unique task IDs
-        task_id = self.env.get_task_id()
-        per_rank_task_id = [None for _ in range(self.fabric.world_size)]
-        dist.all_gather_object(per_rank_task_id, task_id)
+        # Only do distributed gathering if world_size > 1
+        if self.fabric.world_size > 1:
+            task_id = self.env.get_task_id()
+            per_rank_task_id = [None for _ in range(self.fabric.world_size)]
+            dist.all_gather_object(per_rank_task_id, task_id)
 
-        # Only ranks with unique task IDs save the env checkpoint
-        rank_to_task_id = {}
-        seen_task_ids = set()
-        for rank, tid in enumerate(per_rank_task_id):
-            if tid not in seen_task_ids:
-                seen_task_ids.add(tid)
-                rank_to_task_id[rank] = tid
+            # Only ranks with unique task IDs save the env checkpoint
+            rank_to_task_id = {}
+            seen_task_ids = set()
+            for rank, tid in enumerate(per_rank_task_id):
+                if tid not in seen_task_ids:
+                    seen_task_ids.add(tid)
+                    rank_to_task_id[rank] = tid
 
-        if self.fabric.global_rank in rank_to_task_id:
+            if self.fabric.global_rank in rank_to_task_id:
+                env_checkpoint = save_dir / f"env_{task_id}.ckpt"
+                env_state_dict = self.env.get_state_dict()
+                torch.save(env_state_dict, env_checkpoint)
+                log.info(
+                    f"Saved env checkpoint: {env_checkpoint}, rank {self.fabric.global_rank}"
+                )
+        else:
+            # Single device: just save env checkpoint directly
+            task_id = self.env.get_task_id()
             env_checkpoint = save_dir / f"env_{task_id}.ckpt"
             env_state_dict = self.env.get_state_dict()
             torch.save(env_state_dict, env_checkpoint)
-            log.info(
-                f"Saved env checkpoint: {env_checkpoint}, rank {self.fabric.global_rank}"
-            )
+            log.info(f"Saved env checkpoint: {env_checkpoint}")
+
         self.fabric.barrier()
 
         # Check if new high score flag is consistent across devices
-        gathered_high_score = self.fabric.all_gather(new_high_score)
-        assert all(
-            [x == gathered_high_score[0] for x in gathered_high_score]
-        ), "New high score flag should be the same across all ranks."
-
+        if self.fabric.world_size > 1:
+            gathered_high_score = self.fabric.all_gather(new_high_score)
+            assert all(
+                [x == gathered_high_score[0] for x in gathered_high_score]
+            ), "New high score flag should be same across all ranks."
+        
         if new_high_score:
             self.fabric.save(save_dir / "score_based.ckpt", state_dict)
             log.info(

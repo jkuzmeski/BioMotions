@@ -1,0 +1,532 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SMPL Lower Body URDF for PyRoki Retargeting -->
+<!-- Based on smpl_humanoid_lower_body_adjusted_pd.xml -->
+<!-- 9 bodies: Pelvis + 4 per leg (Hip, Knee, Ankle, Toe) -->
+<!-- For retargeting, pelvis is root (no floating base needed) -->
+<robot name="smpl_lower_body">
+
+  <!-- Pelvis - Root body (no world link needed for retargeting) -->
+  <link name="Pelvis">
+    <visual>
+      <origin xyz="-0.0055 0.0 -0.0121" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.166 0.28 0.1444"/>
+      </geometry>
+      <material name="skin">
+        <color rgba="0.8 0.6 0.4 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0055 0.0 -0.0121" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.166 0.28 0.1444"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.0055 0.0 -0.0121" rpy="0 0 0"/>
+      <mass value="10.0"/>
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+    </inertial>
+  </link>
+
+  <!-- ========== LEFT LEG ========== -->
+  
+  <!-- Left Hip (upper leg) - 3 revolute joints for 3 DOF -->
+  <link name="L_Hip_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Hip_x" type="revolute">
+    <parent link="Pelvis"/>
+    <child link="L_Hip_roll_link"/>
+    <origin xyz="-0.00655 0.095 -0.091" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.35" upper="0.79" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Hip_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Hip_y" type="revolute">
+    <parent link="L_Hip_roll_link"/>
+    <child link="L_Hip_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.52" upper="2.09" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Hip">
+    <visual>
+      <origin xyz="0 0 -0.189" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0606" length="0.35"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.189" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0606" length="0.35"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 -0.189" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Hip_z" type="revolute">
+    <parent link="L_Hip_pitch_link"/>
+    <child link="L_Hip"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.79" upper="0.79" effort="100" velocity="10"/>
+  </joint>
+  
+  <!-- Left Knee - 3 revolute joints -->
+  <link name="L_Knee_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Knee_x" type="revolute">
+    <parent link="L_Hip"/>
+    <child link="L_Knee_roll_link"/>
+    <origin xyz="-0.0067 0.0 -0.3789" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Knee_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Knee_y" type="revolute">
+    <parent link="L_Knee_roll_link"/>
+    <child link="L_Knee_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.17" upper="2.62" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Knee">
+    <visual>
+      <origin xyz="0 0 -0.199" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0541" length="0.35"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.199" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0541" length="0.35"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 -0.199" rpy="0 0 0"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.04" ixy="0" ixz="0" iyy="0.04" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Knee_z" type="revolute">
+    <parent link="L_Knee_pitch_link"/>
+    <child link="L_Knee"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.26" upper="0.26" effort="100" velocity="10"/>
+  </joint>
+  
+  <!-- Left Ankle - 3 revolute joints -->
+  <link name="L_Ankle_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Ankle_x" type="revolute">
+    <parent link="L_Knee"/>
+    <child link="L_Ankle_roll_link"/>
+    <origin xyz="0.0 0.0 -0.3982" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Ankle_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Ankle_y" type="revolute">
+    <parent link="L_Ankle_roll_link"/>
+    <child link="L_Ankle_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.79" upper="0.35" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Ankle">
+    <visual>
+      <origin xyz="0.0225 0.0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.173 0.08 0.0956"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0225 0.0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.173 0.08 0.0956"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.0225 0.0 -0.02" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Ankle_z" type="revolute">
+    <parent link="L_Ankle_pitch_link"/>
+    <child link="L_Ankle"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <!-- Left Toe - 3 revolute joints -->
+  <link name="L_Toe_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Toe_x" type="revolute">
+    <parent link="L_Ankle"/>
+    <child link="L_Toe_roll_link"/>
+    <origin xyz="0.1233 0.0 -0.055" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Toe_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Toe_y" type="revolute">
+    <parent link="L_Toe_roll_link"/>
+    <child link="L_Toe_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.35" upper="0" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="L_Toe">
+    <visual>
+      <origin xyz="0.0248 0.0 0.007" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.0992 0.08 0.04"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0248 0.0 0.007" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.0992 0.08 0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.0248 0.0 0.007" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  
+  <joint name="L_Toe_z" type="revolute">
+    <parent link="L_Toe_pitch_link"/>
+    <child link="L_Toe"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.09" upper="0.09" effort="100" velocity="10"/>
+  </joint>
+
+  <!-- ========== RIGHT LEG ========== -->
+  
+  <!-- Right Hip - 3 revolute joints -->
+  <link name="R_Hip_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Hip_x" type="revolute">
+    <parent link="Pelvis"/>
+    <child link="R_Hip_roll_link"/>
+    <origin xyz="-0.00655 -0.095 -0.091" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.35" upper="0.79" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Hip_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Hip_y" type="revolute">
+    <parent link="R_Hip_roll_link"/>
+    <child link="R_Hip_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.52" upper="2.09" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Hip">
+    <visual>
+      <origin xyz="0 0 -0.189" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0606" length="0.35"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.189" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0606" length="0.35"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 -0.189" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Hip_z" type="revolute">
+    <parent link="R_Hip_pitch_link"/>
+    <child link="R_Hip"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.26" upper="0.26" effort="100" velocity="10"/>
+  </joint>
+  
+  <!-- Right Knee - 3 revolute joints -->
+  <link name="R_Knee_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Knee_x" type="revolute">
+    <parent link="R_Hip"/>
+    <child link="R_Knee_roll_link"/>
+    <origin xyz="-0.0067 0.0 -0.3789" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Knee_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Knee_y" type="revolute">
+    <parent link="R_Knee_roll_link"/>
+    <child link="R_Knee_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.17" upper="2.62" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Knee">
+    <visual>
+      <origin xyz="0 0 -0.199" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0541" length="0.35"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.199" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.0541" length="0.35"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 -0.199" rpy="0 0 0"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.04" ixy="0" ixz="0" iyy="0.04" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Knee_z" type="revolute">
+    <parent link="R_Knee_pitch_link"/>
+    <child link="R_Knee"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.26" upper="0.26" effort="100" velocity="10"/>
+  </joint>
+  
+  <!-- Right Ankle - 3 revolute joints -->
+  <link name="R_Ankle_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Ankle_x" type="revolute">
+    <parent link="R_Knee"/>
+    <child link="R_Ankle_roll_link"/>
+    <origin xyz="0.0 0.0 -0.3982" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Ankle_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Ankle_y" type="revolute">
+    <parent link="R_Ankle_roll_link"/>
+    <child link="R_Ankle_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.79" upper="0.35" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Ankle">
+    <visual>
+      <origin xyz="0.0225 0.0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.173 0.08 0.0956"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0225 0.0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.173 0.08 0.0956"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.0225 0.0 -0.02" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Ankle_z" type="revolute">
+    <parent link="R_Ankle_pitch_link"/>
+    <child link="R_Ankle"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <!-- Right Toe - 3 revolute joints -->
+  <link name="R_Toe_roll_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Toe_x" type="revolute">
+    <parent link="R_Ankle"/>
+    <child link="R_Toe_roll_link"/>
+    <origin xyz="0.1233 0.0 -0.055" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.17" upper="0.17" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Toe_pitch_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Toe_y" type="revolute">
+    <parent link="R_Toe_roll_link"/>
+    <child link="R_Toe_pitch_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.35" upper="0" effort="100" velocity="10"/>
+  </joint>
+  
+  <link name="R_Toe">
+    <visual>
+      <origin xyz="0.0248 0.0 0.007" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.0992 0.08 0.04"/>
+      </geometry>
+      <material name="skin"/>
+    </visual>
+    <collision>
+      <origin xyz="0.0248 0.0 0.007" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.0992 0.08 0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.0248 0.0 0.007" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  
+  <joint name="R_Toe_z" type="revolute">
+    <parent link="R_Toe_pitch_link"/>
+    <child link="R_Toe"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.09" upper="0.09" effort="100" velocity="10"/>
+  </joint>
+
+</robot>
