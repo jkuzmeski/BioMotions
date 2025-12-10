@@ -134,6 +134,12 @@ class SmplLowerBodyConfig(RobotConfig):
         default_factory=lambda: ["R_Ankle", "L_Ankle", "R_Toe", "L_Toe"]
     )
 
+    contact_bodies: List[str] = field(
+        default_factory=lambda: ["R_Ankle", "L_Ankle", "R_Toe", "L_Toe"]
+    )
+
+    imu_body: Optional[str] = "Pelvis"
+
     common_naming_to_robot_body_names: Dict[str, List[str]] = field(
         default_factory=lambda: {
             "all_left_foot_bodies": ["L_Ankle", "L_Toe"],

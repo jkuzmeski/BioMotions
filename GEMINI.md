@@ -9,7 +9,7 @@ The framework is built on Python and leverages powerful simulation engines and d
 - **Core Technologies:**
     - **Programming Language:** Python (>=3.8)
     - **Deep Learning:** PyTorch, PyTorch Lightning
-    - **Simulation Engines:** NVIDIA IsaacGym, NVIDIA Isaac Lab, NVIDIA Newton, Genesis
+    - **Simulation Engines:** NVIDIA Isaac Lab
     - **Experiment Tracking:** Weights & Biases (`wandb`)
     - **Configuration:** A custom, robust configuration system inspired by Hydra. It saves fully resolved configurations as pickled objects to ensure reproducibility.
 
@@ -24,15 +24,24 @@ The framework is built on Python and leverages powerful simulation engines and d
 
 ### Installation
 
-The project is installed as a Python package. The core dependencies are listed in several `requirements_*.txt` files, corresponding to different simulation environments. For the standard IsaacGym environment, the dependencies can be installed from `requirements_isaacgym.txt`.
+**Environment Setup:**
+This project utilizes the `uv` package manager and a virtual environment named `Biomotions`. Ensure you are working within this environment on your Windows machine.
+
+```powershell
+# Activate the Biomotions environment (Windows)
+# Assuming standard uv venv location
+. \Biomotions\Scripts\activate
+```
+
+The project is installed as a Python package. The core dependencies are listed in several `requirements_*.txt` files, corresponding to different simulation environments. For the Isaac Lab environment, the dependencies can be installed from `requirements_isaaclab.txt`.
 
 ```bash
-# Example installation for the IsaacGym environment
-pip install -r requirements_isaacgym.txt
+# Example installation for the Isaac Lab environment
+pip install -r requirements_isaaclab.txt
 python setup.py install
 ```
 
-**Note:** Specific simulators like IsaacGym and Isaac Lab have their own installation procedures which must be completed first. Refer to the official documentation for those simulators.
+**Note:** Specific simulators like Isaac Lab have their own installation procedures which must be completed first. Refer to the official documentation for those simulators.
 
 ### Running Experiments
 
@@ -59,7 +68,7 @@ python protomotions/train_agent.py \\
 # This is a conceptual example. You will need to provide a valid motion file.
 python protomotions/train_agent.py \\
     --robot-name g1 \\
-    --simulator isaacgym \\
+    --simulator isaaclab \\
     --experiment-path examples/experiments/mimic/mlp.py \\
     --experiment-name g1_mimic_example \\
     --motion-file /path/to/your/motions.pt \\
@@ -74,7 +83,7 @@ The `examples/` directory contains various tutorials and standalone scripts. The
 **Example Tutorial Run:**
 
 ```bash
-python examples/tutorial/4_basic_environment.py --simulator isaacgym --robot g1
+python examples/tutorial/4_basic_environment.py --simulator isaaclab --robot g1
 ```
 
 ## Development Conventions

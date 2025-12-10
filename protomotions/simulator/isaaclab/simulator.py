@@ -143,6 +143,16 @@ class IsaacLabSimulator(Simulator):
                     )
                 else:
                     self._object_contact_sensor.append(None)
+        
+        if "imu_sensor" in self._scene.keys():
+            self._imu_sensor = self._scene["imu_sensor"]
+            # Workaround for AttributeError: 'Imu' object has no attribute '_dt'
+            # Manually set _dt if it's missing
+            if not hasattr(self._imu_sensor, "_dt"):
+                self._imu_sensor._dt = self._sim.get_physics_dt()
+        else:
+            self._imu_sensor = None
+
         if self._visualization_markers:
             self._build_markers(self._visualization_markers)
         self._sim.reset()
@@ -771,6 +781,29 @@ class IsaacLabSimulator(Simulator):
         """
         root_pos = self._robot.data.root_pos_w
         return root_pos.shape[0] // self.num_envs
+
+    def get_imu_data(self, env_ids: Optional[torch.Tensor] = None) -> Optional[Dict[str, torch.Tensor]]:
+        """
+        Retrieve data from the IMU sensor if it exists.
+
+        Returns:
+            Optional[Dict[str, torch.Tensor]]: Dictionary with 'orientation' (world), 'ang_vel' (body), 'lin_acc' (body) 
+                                               if IMU exists, else None.
+        """
+        if self._imu_sensor is None:
+            return None
+        
+        data = {
+            "orientation": self._imu_sensor.data.quat_w.clone(),
+            "ang_vel": self._imu_sensor.data.ang_vel_b.clone(),
+            "lin_acc": self._imu_sensor.data.lin_acc_b.clone(),
+        }
+        
+        if env_ids is not None:
+            for key in data:
+                data[key] = data[key][env_ids]
+                
+        return data
 
     # =====================================================
     # Group 5: Control & Computation Methods

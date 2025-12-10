@@ -21,7 +21,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.actuators import ImplicitActuatorCfg, IdealPDActuatorCfg
 from isaaclab.utils import configclass
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg, ImuCfg
 from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from protomotions.simulator.isaaclab.utils.usd_utils import TrimeshTerrainImporter
@@ -54,7 +54,7 @@ class SceneCfg(InteractiveSceneCfg):
     ):
         super().__init__(*args, **kwargs)
 
-        activate_contact_sensors = robot_config.contact_bodies is not None
+        activate_contact_sensors = len(robot_config.contact_bodies) > 0
 
         # lights
         if True:  # pretty:
@@ -190,6 +190,13 @@ class SceneCfg(InteractiveSceneCfg):
                     history_length=config.sim.decimation,
                 )
                 setattr(self, f"contact_sensor_{body_name}", contact_sensor_cfg)
+
+        if hasattr(robot_config, "imu_body") and robot_config.imu_body:
+            imu_cfg = ImuCfg(
+                prim_path=f"{robot_config.asset.usd_bodies_root_prim_path}{robot_config.imu_body}",
+                update_period=1.0 / config.sim.fps,
+            )
+            setattr(self, "imu_sensor", imu_cfg)
 
         if terrain is not None:
             terrain_physics_material = sim_utils.RigidBodyMaterialCfg(
