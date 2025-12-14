@@ -89,7 +89,7 @@ from protomotions.envs.base_env.config import EnvConfig
 
 from protomotions.components.pose_lib import build_body_ids_tensor
 
-from protomotions.robot_configs.base import RobotConfig
+from protomotions.robot_configs.base import RobotConfig, ControlType
 
 if TYPE_CHECKING:
     from protomotions.components.scene_lib import SceneLib
@@ -459,16 +459,32 @@ class BaseEnv:
     def process_actions(self, actions):
         """Process and clamp actions before passing to simulator.
 
+        For TORQUE control, scales actions by action_scale (e.g., 500.0)
+        to convert from [-1, 1] policy output to actual torque values.
+        For other control types, actions are typically already in the
+        correct range.
+
         Args:
             actions: Raw action tensor [num_envs, action_dim]
 
         Returns:
             Processed action tensor [num_envs, action_dim]
         """
+        # Scale actions for torque control
+        control_type = self.robot_config.control.control_type
+        if control_type == ControlType.TORQUE:
+            action_scale = self.robot_config.control.action_scale
+            if action_scale is None:
+                action_scale = 500.0  # Default torque scale
+            actions = actions * action_scale
+
         clamp_actions = self.robot_config.control.clamp_actions
         if clamp_actions is not None:
-            actions = torch.clamp(actions, -clamp_actions, clamp_actions)
-            self.extras["action_clamp"] = (actions.abs() == clamp_actions).float()
+            actions = torch.clamp(
+                actions, -clamp_actions, clamp_actions
+            )
+            clamp_mask = (actions.abs() == clamp_actions).float()
+            self.extras["action_clamp"] = clamp_mask
 
         return actions
 

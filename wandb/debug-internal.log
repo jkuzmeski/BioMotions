@@ -1,1 +1,1 @@
-wandb: WARNING Path results\test_training\wandb\ wasn't writable, using system temp directory
+wandb: WARNING Path results\mimic_200fps_torque\wandb\ wasn't writable, using system temp directory

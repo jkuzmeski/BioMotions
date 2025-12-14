@@ -265,6 +265,10 @@ class MimicEvaluator(BaseEvaluator):
         obs = self.agent.add_agent_info_to_obs(obs)
         obs_td = self.agent.obs_dict_to_tensordict(obs)
 
+        if self.config.record_video:
+            video_name = f"{self.agent.config.experiment_name}_epoch_{self.agent.current_epoch}_motions_{active_motion_ids[0].item()}_{active_motion_ids[-1].item()}"
+            self.env.simulator.start_recording(video_name)
+
         # Run the episode and collect metrics (no resets during episode)
         for _ in range(max_len):
             # Obtain actor predictions
@@ -282,6 +286,9 @@ class MimicEvaluator(BaseEvaluator):
             self.update_metrics_from_env_extras(
                 metrics, extras, active_env_ids, active_motion_ids
             )
+
+        if self.config.record_video:
+            self.env.simulator.stop_recording()
 
     def add_extra_obs_to_agent(self, obs: Tensor):
         return obs

@@ -134,7 +134,7 @@ class ControlConfig(ConfigBuilder):
     # If control_type is proportional, this defines the scale beyond the pd-range.
     # so that motor does not lose strength as it approaches the joint limits
     # ref. build_pd_action_offset_scale()
-    action_scale: float = 1.0
+    action_scale: Optional[float] = None
 
     # clamps the actions to be within [-clamp_actions, clamp_actions]
     # the clamped actions are provided to the simulator
@@ -147,12 +147,22 @@ class ControlConfig(ConfigBuilder):
     control_info: Dict[str, ControlInfo] = field(init=False)
 
     def __post_init__(self):
-        """Validate that override_control_info is a dictionary."""
+        """Set default action_scale and validate override_control_info."""
+        # Set default action_scale based on control_type if not
+        # explicitly provided
+        if self.action_scale is None:
+            if self.control_type == ControlType.TORQUE:
+                self.action_scale = 500.0
+            else:
+                self.action_scale = 1.0
+
         if self.override_control_info is not None:
             override_control_info = {}
             for key, value in self.override_control_info.items():
                 if isinstance(value, dict):
-                    override_control_info[key] = ControlInfo.from_dict(value)
+                    override_control_info[key] = (
+                        ControlInfo.from_dict(value)
+                    )
                 else:
                     override_control_info[key] = value
             self.override_control_info = override_control_info

@@ -326,6 +326,7 @@ class BaseAgent:
 
             if self.fabric.global_rank in rank_to_task_id:
                 env_checkpoint = save_dir / f"env_{task_id}.ckpt"
+                env_checkpoint.parent.mkdir(parents=True, exist_ok=True)
                 env_state_dict = self.env.get_state_dict()
                 torch.save(env_state_dict, env_checkpoint)
                 log.info(
@@ -335,6 +336,7 @@ class BaseAgent:
             # Single device: just save env checkpoint directly
             task_id = self.env.get_task_id()
             env_checkpoint = save_dir / f"env_{task_id}.ckpt"
+            env_checkpoint.parent.mkdir(parents=True, exist_ok=True)
             env_state_dict = self.env.get_state_dict()
             torch.save(env_state_dict, env_checkpoint)
             log.info(f"Saved env checkpoint: {env_checkpoint}")

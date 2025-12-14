@@ -160,7 +160,6 @@ class SmplLowerBodyConfig(RobotConfig):
             asset_file_name="mjcf/smpl_humanoid_lower_body_adjusted_pd.xml",
             usd_asset_file_name="usd/smpl_humanoid_lower_body_adjusted_pd.usda",
             usd_bodies_root_prim_path="/World/envs/env_.*/Robot/bodies/",
-            self_collisions=False,
             max_linear_velocity=1000.0,
             max_angular_velocity=1000.0,
             angular_damping=0.0,
@@ -170,7 +169,7 @@ class SmplLowerBodyConfig(RobotConfig):
 
     control: ControlConfig = field(
         default_factory=lambda: ControlConfig(
-            control_type=ControlType.BUILT_IN_PD,
+            control_type=ControlType.TORQUE,
             override_control_info={
                 # Hip joints - highest stiffness for stability
                 ".*_Hip_.*": ControlInfo(
@@ -216,10 +215,10 @@ class SmplLowerBodyConfig(RobotConfig):
                 substeps=2,
             ),
             isaaclab=IsaacLabSimParams(
-                fps=120,
-                decimation=4,
+                fps=200,
+                decimation=1,
                 physx=IsaacLabPhysXParams(
-                    num_position_iterations=4,
+                    num_position_iterations=8,
                     num_velocity_iterations=4,
                     max_depenetration_velocity=1,
                 ),

@@ -36,3 +36,4 @@ class MimicEvaluatorConfig(EvaluatorConfig):
     save_predicted_motion_lib_every: Optional[int] = (
         3  # Save pred_motion_lib_epoch_xxx.pt every M evals (None = disabled)
     )
+    record_video: bool = False  # Record video during evaluation
