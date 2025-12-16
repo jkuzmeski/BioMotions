@@ -130,7 +130,7 @@ class ControlConfig(ConfigBuilder):
     override_control_info: Optional[Dict[str, ControlInfo]] = None
 
     # Can be "built_in_pd" or "proportional"/"velocity"/"torque" for Proportional, Velocity, Torque control
-    control_type: ControlType = ControlType.BUILT_IN_PD
+    control_type: ControlType = ControlType.TORQUE
     # If control_type is proportional, this defines the scale beyond the pd-range.
     # so that motor does not lose strength as it approaches the joint limits
     # ref. build_pd_action_offset_scale()

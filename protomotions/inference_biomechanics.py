@@ -400,6 +400,7 @@ def main():
             "dof_vel": [],
             "dof_forces": [],  # Joint torques
             "rigid_body_contact_forces": [],  # GRF (if sensors on feet)
+            "rigid_body_pos": [],  # Needed for COP computation
             "root_pos": [],
             "root_rot": [],
             "root_vel": [],
@@ -441,6 +442,9 @@ def main():
                 # rigid_body_contact_forces: [num_envs, num_bodies, 3]
                 if robot_state.rigid_body_contact_forces is not None:
                     collected_data["rigid_body_contact_forces"].append(robot_state.rigid_body_contact_forces.cpu())
+
+                if hasattr(robot_state, "rigid_body_pos") and robot_state.rigid_body_pos is not None:
+                    collected_data["rigid_body_pos"].append(robot_state.rigid_body_pos.cpu())
                 
                 collected_data["root_pos"].append(robot_state.root_pos.cpu())
                 collected_data["root_rot"].append(robot_state.root_rot.cpu())
@@ -482,6 +486,60 @@ def main():
         collected_data["dt"] = env.simulator.dt
         collected_data["body_names"] = env.simulator._body_names
         collected_data["dof_names"] = env.simulator._dof_names
+
+        # Derive per-foot GRF/COP if we have pad contact forces + positions
+        try:
+            body_names = list(collected_data["body_names"])
+
+            contact_forces = collected_data.get("rigid_body_contact_forces")
+            body_pos = collected_data.get("rigid_body_pos")
+
+            if isinstance(contact_forces, torch.Tensor) and isinstance(body_pos, torch.Tensor):
+                name_to_idx = {name: i for i, name in enumerate(body_names)}
+                left_pad_names = ["L_Heel", "L_MetMedial", "L_MetLateral", "L_ToeTip"]
+                right_pad_names = ["R_Heel", "R_MetMedial", "R_MetLateral", "R_ToeTip"]
+
+                def _indices_for(names: list[str]) -> list[int]:
+                    return [name_to_idx[n] for n in names if n in name_to_idx]
+
+                left_ids = _indices_for(left_pad_names)
+                right_ids = _indices_for(right_pad_names)
+
+                eps = 1e-8
+
+                def _foot_grf_cop(ids: list[int]):
+                    # contact_forces: [T, E, B, 3]; body_pos: [T, E, B, 3]
+                    f = contact_forces[:, :, ids, :]
+                    p = body_pos[:, :, ids, :]
+
+                    grf = f.sum(dim=2)  # [T, E, 3]
+
+                    # Use vertical force as weight for COP.
+                    # (Assumes +Z is up, which is consistent with the USD assets.)
+                    fz = torch.relu(f[..., 2])  # [T, E, P]
+                    fz_sum = fz.sum(dim=2)  # [T, E]
+
+                    cop = (p * fz.unsqueeze(-1)).sum(dim=2) / (fz_sum.unsqueeze(-1).clamp_min(eps))
+                    cop = torch.where(
+                        (fz_sum > eps).unsqueeze(-1),
+                        cop,
+                        torch.full_like(cop, float("nan")),
+                    )
+                    return grf, cop, fz_sum
+
+                if left_ids:
+                    grf_l, cop_l, fz_l = _foot_grf_cop(left_ids)
+                    collected_data["grf_left"] = grf_l
+                    collected_data["cop_left"] = cop_l
+                    collected_data["fz_left"] = fz_l
+
+                if right_ids:
+                    grf_r, cop_r, fz_r = _foot_grf_cop(right_ids)
+                    collected_data["grf_right"] = grf_r
+                    collected_data["cop_right"] = cop_r
+                    collected_data["fz_right"] = fz_r
+        except Exception as e:
+            log.warning(f"Failed to compute COP/GRF from contact pads: {e}")
 
         # Save to file
         save_path = output_dir / "biomechanics_data.pt"

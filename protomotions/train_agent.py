@@ -94,6 +94,25 @@ os.environ["WANDB_DISABLE_SENTRY"] = "true"  # Must be first environment variabl
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_DISABLE_CODE"] = "true"
 
+# Workaround for MuJoCo DLL loading issue on Windows when using Isaac Lab.
+# MuJoCo's bundled plugins cause DLL conflicts with Isaac Lab's OpenGL context.
+# We patch ctypes.CDLL to skip loading problematic DLLs before importing mujoco.
+# See: https://github.com/google-deepmind/mujoco/issues/1164
+import sys
+if sys.platform == "win32":
+    import ctypes
+    _original_cdll_init = ctypes.CDLL.__init__
+
+    def _patched_cdll_init(self, name, *args, **kwargs):
+        # Skip loading MuJoCo plugin DLLs that cause conflicts
+        if name and "mujoco" in name.lower() and "plugin" in name.lower():
+            self._handle = None
+            self._name = name
+            return
+        return _original_cdll_init(self, name, *args, **kwargs)
+
+    ctypes.CDLL.__init__ = _patched_cdll_init
+
 """
 ## Quick Start
 
@@ -235,7 +254,16 @@ def create_parser():
         "--nodes", type=int, default=1, help="Number of nodes for distributed training"
     )
     parser.add_argument(
-        "--headless", default=True, help="Run simulation in headless mode"
+        "--headless",
+        action="store_true",
+        default=True,
+        help="Run simulation in headless mode (default: True). Use --gui to disable.",
+    )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        default=False,
+        help="Run with GUI (disables headless mode)",
     )
     parser.add_argument(
         "--seed", type=int, default=0, help="Random seed for reproducibility"
@@ -275,6 +303,9 @@ import argparse  # noqa: E402
 
 parser = create_parser()
 args, unknown_args = parser.parse_known_args()
+
+if args.gui:
+    args.headless = False
 
 # Import simulator before torch - isaacgym/isaaclab must be imported before torch
 # This also returns AppLauncher if using isaaclab, None otherwise

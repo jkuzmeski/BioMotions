@@ -28,8 +28,8 @@ Each joint has 3 DOF (x, y, z axes) for a total of 24 DOF.
 """
 
 from protomotions.robot_configs.base import (
-    RobotConfig,
     RobotAssetConfig,
+    RobotConfig,
     ControlConfig,
     ControlType,
     SimulatorParams,
@@ -42,13 +42,14 @@ from protomotions.simulator.isaaclab.config import (
 from protomotions.simulator.genesis.config import GenesisSimParams
 from protomotions.simulator.newton.config import NewtonSimParams
 from protomotions.components.pose_lib import ControlInfo
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
-import os
 
 
-# Base height for the SMPL lower body model (in meters)
-BASE_MODEL_HEIGHT = 1.70
+# Base dimensions for the SMPL lower body model.
+BASE_MODEL_HEIGHT_M = 1.70
+BASE_HEIGHT_CM = 170
+BASE_ROOT_HEIGHT_M = 0.95
 
 # Default PD gains for lower body joints
 # These values are tuned for stable locomotion
@@ -75,13 +76,33 @@ def compute_root_height(height_cm: int) -> float:
     Returns:
         Default root height in meters
     """
-    # Base root height at 170cm is approximately 0.95m
-    base_root_height = 0.95
-    scale_factor = height_cm / 170.0
-    return base_root_height * scale_factor
+    if height_cm <= 0:
+        raise ValueError(f"height_cm must be positive, got {height_cm}")
+
+    scale_factor = height_cm / float(BASE_HEIGHT_CM)
+    return BASE_ROOT_HEIGHT_M * scale_factor
 
 
-def get_asset_paths(height_cm: Optional[int] = None, variant: str = "adjusted_pd") -> dict:
+def _asset_base_name(variant: str) -> str:
+    if variant == "base":
+        return "smpl_humanoid_lower_body"
+    if variant == "adjusted_torque":
+        return "smpl_humanoid_lower_body_adjusted_torque"
+    if variant == "adjusted_pd":
+        return "smpl_humanoid_lower_body_adjusted_pd"
+
+    raise ValueError(
+        (
+            f"Invalid variant: {variant}. Supported variants: "
+            "adjusted_pd, adjusted_torque, base"
+        )
+    )
+
+
+def get_asset_paths(
+    height_cm: Optional[int] = None,
+    variant: str = "adjusted_pd",
+) -> Dict[str, str]:
     """
     Get asset file paths for a given height variant.
     
@@ -92,14 +113,11 @@ def get_asset_paths(height_cm: Optional[int] = None, variant: str = "adjusted_pd
     Returns:
         Dictionary with 'mjcf' and 'usd' keys
     """
-    if variant == "base":
-        base_name = "smpl_humanoid_lower_body"
-    elif variant == "adjusted_torque":
-        base_name = "smpl_humanoid_lower_body_adjusted_torque"
-    else:  # default to adjusted_pd
-        base_name = "smpl_humanoid_lower_body_adjusted_pd"
+    base_name = _asset_base_name(variant)
     
     if height_cm is not None:
+        if height_cm <= 0:
+            raise ValueError(f"height_cm must be positive, got {height_cm}")
         suffix = f"_height_{height_cm}cm"
     else:
         suffix = ""
@@ -157,8 +175,14 @@ class SmplLowerBodyConfig(RobotConfig):
     asset: RobotAssetConfig = field(
         default_factory=lambda: RobotAssetConfig(
             asset_root="protomotions/data/assets",
-            asset_file_name="mjcf/smpl_humanoid_lower_body_adjusted_pd.xml",
-            usd_asset_file_name="usd/smpl_humanoid_lower_body_adjusted_pd.usda",
+            # NOTE: The 170cm lower-body assets in this repo use the explicit
+            # "_height_170cm" suffix.
+            asset_file_name=(
+                "mjcf/smpl_humanoid_lower_body_adjusted_pd_height_170cm.xml"
+            ),
+            usd_asset_file_name=(
+                "usd/smpl_humanoid_lower_body_adjusted_pd_height_170cm.usda"
+            ),
             usd_bodies_root_prim_path="/World/envs/env_.*/Robot/bodies/",
             max_linear_velocity=1000.0,
             max_angular_velocity=1000.0,
@@ -219,8 +243,8 @@ class SmplLowerBodyConfig(RobotConfig):
                 decimation=1,
                 physx=IsaacLabPhysXParams(
                     num_position_iterations=8,
-                    num_velocity_iterations=4,
-                    max_depenetration_velocity=1,
+                    num_velocity_iterations=8,
+                    max_depenetration_velocity=2,
                 ),
             ),
             genesis=GenesisSimParams(
@@ -263,6 +287,7 @@ class SmplLowerBodyConfigFactory:
         height_cm: int,
         variant: str = "adjusted_pd",
         asset_root: str = "protomotions/data/assets",
+        contact_pads: bool = False,
     ) -> SmplLowerBodyConfig:
         """
         Create a height-scaled SMPL lower body configuration.
@@ -275,18 +300,32 @@ class SmplLowerBodyConfigFactory:
         Returns:
             Configured SmplLowerBodyConfig instance
         """
-        # Compute scaled parameters
-        scale_factor = height_cm / 170.0
+        if height_cm <= 0:
+            raise ValueError(f"height_cm must be positive, got {height_cm}")
+        if variant == "torque":
+            variant = "adjusted_torque"
+
         root_height = compute_root_height(height_cm)
-        
+
         # Get asset paths
-        if variant == "adjusted_torque":
-            base_name = "smpl_humanoid_lower_body_adjusted_torque"
+        base_name = _asset_base_name(variant)
+
+        if contact_pads:
+            if height_cm != 170 or variant != "adjusted_pd":
+                raise ValueError(
+                    "Contact pads are currently only available for the "
+                    "170cm adjusted_pd SMPL lower-body asset. "
+                    f"Requested height_cm={height_cm}, variant={variant}."
+                )
+            mjcf_file = (
+                f"mjcf/{base_name}_height_{height_cm}cm_contact_pads.xml"
+            )
+            usd_file = (
+                f"usd/{base_name}_height_{height_cm}cm_contact_pads.usda"
+            )
         else:
-            base_name = "smpl_humanoid_lower_body_adjusted_pd"
-        
-        mjcf_file = f"mjcf/{base_name}_height_{height_cm}cm.xml"
-        usd_file = f"usd/{base_name}_height_{height_cm}cm.usda"
+            mjcf_file = f"mjcf/{base_name}_height_{height_cm}cm.xml"
+            usd_file = f"usd/{base_name}_height_{height_cm}cm.usda"
         
         # Create the asset config first
         asset_config = RobotAssetConfig(
@@ -302,7 +341,12 @@ class SmplLowerBodyConfigFactory:
         )
         
         # Create configuration directly with the correct asset
-        config = SmplLowerBodyConfig(
+        config_cls = (
+            SmplLowerBody170cmContactPadsConfig
+            if contact_pads
+            else SmplLowerBodyConfig
+        )
+        config = config_cls(
             default_root_height=root_height,
             asset=asset_config,
         )
@@ -325,13 +369,19 @@ class SmplLowerBodyConfigFactory:
 class SmplLowerBody156cmConfig(SmplLowerBodyConfig):
     """Configuration for 156cm subject."""
     
-    default_root_height: float = field(default_factory=lambda: compute_root_height(156))
+    default_root_height: float = field(
+        default_factory=lambda: compute_root_height(156)
+    )
     
     asset: RobotAssetConfig = field(
         default_factory=lambda: RobotAssetConfig(
             asset_root="protomotions/data/assets",
-            asset_file_name="mjcf/smpl_humanoid_lower_body_adjusted_pd_height_156cm.xml",
-            usd_asset_file_name="usd/smpl_humanoid_lower_body_adjusted_pd_height_156cm.usda",
+            asset_file_name=(
+                "mjcf/smpl_humanoid_lower_body_adjusted_pd_height_156cm.xml"
+            ),
+            usd_asset_file_name=(
+                "usd/smpl_humanoid_lower_body_adjusted_pd_height_156cm.usda"
+            ),
             usd_bodies_root_prim_path="/World/envs/env_.*/Robot/bodies/",
             self_collisions=False,
             max_linear_velocity=1000.0,
@@ -349,16 +399,94 @@ class SmplLowerBody170cmConfig(SmplLowerBodyConfig):
 
 
 @dataclass
+class SmplLowerBody170cmContactPadsConfig(SmplLowerBodyConfig):
+    """Configuration for 170cm subject with foot contact pads for COP/GRF."""
+
+    non_termination_contact_bodies: List[str] = field(
+        default_factory=lambda: [
+            "L_Heel",
+            "L_MetMedial",
+            "L_MetLateral",
+            "L_ToeTip",
+            "R_Heel",
+            "R_MetMedial",
+            "R_MetLateral",
+            "R_ToeTip",
+        ]
+    )
+
+    contact_bodies: List[str] = field(
+        default_factory=lambda: [
+            "L_Heel",
+            "L_MetMedial",
+            "L_MetLateral",
+            "L_ToeTip",
+            "R_Heel",
+            "R_MetMedial",
+            "R_MetLateral",
+            "R_ToeTip",
+        ]
+    )
+
+    common_naming_to_robot_body_names: Dict[str, List[str]] = field(
+        default_factory=lambda: {
+            "all_left_foot_bodies": [
+                "L_Heel",
+                "L_MetMedial",
+                "L_MetLateral",
+                "L_ToeTip",
+            ],
+            "all_right_foot_bodies": [
+                "R_Heel",
+                "R_MetMedial",
+                "R_MetLateral",
+                "R_ToeTip",
+            ],
+            "all_left_hand_bodies": [],
+            "all_right_hand_bodies": [],
+            "head_body_name": [],
+            "torso_body_name": ["Pelvis"],
+        }
+    )
+
+    asset: RobotAssetConfig = field(
+        default_factory=lambda: RobotAssetConfig(
+            asset_root="protomotions/data/assets",
+            asset_file_name=(
+                "mjcf/smpl_humanoid_lower_body_adjusted_pd_"
+                "height_170cm_contact_pads.xml"
+            ),
+            usd_asset_file_name=(
+                "usd/smpl_humanoid_lower_body_adjusted_pd_"
+                "height_170cm_contact_pads.usda"
+            ),
+            usd_bodies_root_prim_path="/World/envs/env_.*/Robot/bodies/",
+            self_collisions=False,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            angular_damping=0.0,
+            linear_damping=0.0,
+        )
+    )
+
+
+@dataclass
 class SmplLowerBody180cmConfig(SmplLowerBodyConfig):
     """Configuration for 180cm subject."""
     
-    default_root_height: float = field(default_factory=lambda: compute_root_height(180))
+    default_root_height: float = field(
+        default_factory=lambda: compute_root_height(180)
+    )
     
     asset: RobotAssetConfig = field(
         default_factory=lambda: RobotAssetConfig(
             asset_root="protomotions/data/assets",
-            asset_file_name="mjcf/smpl_humanoid_lower_body_adjusted_pd_height_180cm.xml",
-            usd_asset_file_name="usd/smpl_humanoid_lower_body_adjusted_pd_height_180cm.usda",
+            asset_file_name=(
+                "mjcf/smpl_humanoid_lower_body_adjusted_pd_height_180cm.xml"
+            ),
+            usd_asset_file_name=(
+                "usd/smpl_humanoid_lower_body_adjusted_pd_height_180cm.usda"
+            ),
             usd_bodies_root_prim_path="/World/envs/env_.*/Robot/bodies/",
             self_collisions=False,
             max_linear_velocity=1000.0,
@@ -373,13 +501,19 @@ class SmplLowerBody180cmConfig(SmplLowerBodyConfig):
 class SmplLowerBody195cmConfig(SmplLowerBodyConfig):
     """Configuration for 195cm subject."""
     
-    default_root_height: float = field(default_factory=lambda: compute_root_height(195))
+    default_root_height: float = field(
+        default_factory=lambda: compute_root_height(195)
+    )
     
     asset: RobotAssetConfig = field(
         default_factory=lambda: RobotAssetConfig(
             asset_root="protomotions/data/assets",
-            asset_file_name="mjcf/smpl_humanoid_lower_body_adjusted_pd_height_195cm.xml",
-            usd_asset_file_name="usd/smpl_humanoid_lower_body_adjusted_pd_height_195cm.usda",
+            asset_file_name=(
+                "mjcf/smpl_humanoid_lower_body_adjusted_pd_height_195cm.xml"
+            ),
+            usd_asset_file_name=(
+                "usd/smpl_humanoid_lower_body_adjusted_pd_height_195cm.usda"
+            ),
             usd_bodies_root_prim_path="/World/envs/env_.*/Robot/bodies/",
             self_collisions=False,
             max_linear_velocity=1000.0,
@@ -391,7 +525,5 @@ class SmplLowerBody195cmConfig(SmplLowerBodyConfig):
 
 
 # Register pre-defined configurations
-SmplLowerBodyConfigFactory.register(156, SmplLowerBody156cmConfig)
 SmplLowerBodyConfigFactory.register(170, SmplLowerBody170cmConfig)
-SmplLowerBodyConfigFactory.register(180, SmplLowerBody180cmConfig)
-SmplLowerBodyConfigFactory.register(195, SmplLowerBody195cmConfig)
+

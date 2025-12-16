@@ -64,6 +64,11 @@ def robot_config(robot_name: str, **updates) -> RobotConfig:
     """
     # Handle SMPL lower body variants (with optional height suffix)
     if robot_name.startswith("smpl_lower_body"):
+        contact_pads = False
+        if robot_name.endswith("_contact_pads"):
+            contact_pads = True
+            robot_name = robot_name[: -len("_contact_pads")]
+
         height_cm, variant = _parse_smpl_lower_body_height(robot_name)
         
         if variant is None:
@@ -79,12 +84,20 @@ def robot_config(robot_name: str, **updates) -> RobotConfig:
         
         if height_cm is None:
             # Base model (170cm)
-            config = SmplLowerBodyConfig()
+            if contact_pads:
+                config = SmplLowerBodyConfigFactory.create(
+                    height_cm=170,
+                    variant=variant,
+                    contact_pads=True,
+                )
+            else:
+                config = SmplLowerBodyConfig()
         else:
             # Height-scaled model
             config = SmplLowerBodyConfigFactory.create(
                 height_cm=height_cm,
                 variant=variant,
+                contact_pads=contact_pads,
             )
     elif robot_name == "smpl":
         from protomotions.robot_configs.smpl import SmplRobotConfig

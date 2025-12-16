@@ -80,6 +80,10 @@ python biomechanics_retarget/pipeline.py \
     --height 156 \
     --fps 200
 
+# If you will train with the smpl_lower_body_170cm_contact_pads robot,
+# pass --contact-pads so the pipeline uses the *_contact_pads MJCF when converting/packaging.
+# (You should also pass --pyroki-urdf-path to retarget using the contact-pad URDF.)
+
 # Process for a 180cm subject with torque control variant
 python biomechanics_retarget/pipeline.py \
     ./treadmill_data/S03 \
@@ -132,10 +136,26 @@ python pyroki/batch_retarget_to_smpl_lower_body.py \
     --source-type treadmill \
     --no-visualize
 
+# If you are training the *_contact_pads robot, retarget using the contact-pad URDF:
+python pyroki/batch_retarget_to_smpl_lower_body.py \
+    --keypoints-folder-path ./processed_data/S02/keypoints \
+    --output-dir ./processed_data/S02/retargeted_motions \
+    --urdf-path ./protomotions/data/assets/urdf/for_retargeting/smpl_lower_body_contact_pads.urdf \
+    --source-type treadmill \
+    --no-visualize
+
 # Extract contact labels
 python pyroki/batch_retarget_to_smpl_lower_body.py \
     --keypoints-folder-path ./processed_data/S02/keypoints \
     --contacts-dir ./processed_data/S02/contacts \
+    --source-type treadmill \
+    --save-contacts-only
+
+# Contact labels with contact-pad URDF:
+python pyroki/batch_retarget_to_smpl_lower_body.py \
+    --keypoints-folder-path ./processed_data/S02/keypoints \
+    --contacts-dir ./processed_data/S02/contacts \
+    --urdf-path ./protomotions/data/assets/urdf/for_retargeting/smpl_lower_body_contact_pads.urdf \
     --source-type treadmill \
     --save-contacts-only
 ```

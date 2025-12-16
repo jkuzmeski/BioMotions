@@ -92,6 +92,7 @@ class PipelineConfig:
     subject_height_cm: Optional[int] = None  # Auto model selection
     model_variant: str = "adjusted_pd"  # adjusted_pd or adjusted_torque
     pyroki_python: Optional[Path] = None  # PyRoki Python interpreter
+    pyroki_urdf_path: Optional[Path] = None  # Optional URDF override for PyRoki
     jax_platform: str = "cuda"  # JAX backend: cuda, rocm, cpu, etc
     apply_motion_filter: bool = True  # Apply motion quality filter
     filter_config: Optional[Path] = None  # Motion quality filter config
@@ -269,6 +270,8 @@ class BiomechanicsPipeline:
             console.print(f"Run manually: python pyroki/batch_retarget_to_smpl_lower_body.py \\")
             console.print(f"    --keypoints-folder-path {self.config.keypoints_dir} \\")
             console.print(f"    --output-dir {self.config.retargeted_dir} \\")
+            if self.config.pyroki_urdf_path is not None:
+                console.print(f"    --urdf-path {self.config.pyroki_urdf_path} \\")
             console.print(f"    --source-type treadmill \\")
             console.print(f"    --no-visualize")
             return []
@@ -305,9 +308,12 @@ class BiomechanicsPipeline:
                 "--output-dir", str(self.config.retargeted_dir),
                 "--source-type", "treadmill",
                 "--target-raw-frames", "-1",
-                # "--no-visualize",
+                "--no-visualize",
                 "--skip-existing",
             ]
+
+            if self.config.pyroki_urdf_path is not None:
+                cmd.extend(["--urdf-path", str(self.config.pyroki_urdf_path)])
             
             console.print("   Running retargeting...")
             console.print(f"   Script: {retarget_script}")
@@ -341,6 +347,9 @@ class BiomechanicsPipeline:
                 "--save-contacts-only",
                 "--skip-existing",
             ]
+
+            if self.config.pyroki_urdf_path is not None:
+                cmd.extend(["--urdf-path", str(self.config.pyroki_urdf_path)])
             
             result = subprocess.run(cmd, capture_output=True, text=True, env=env)
             if result.returncode != 0:
@@ -669,6 +678,7 @@ def get_model_for_height(
     height_cm: int,
     variant: str = "adjusted_pd",
     rescale_dir: Optional[Path] = None,
+    contact_pads: bool = False,
 ) -> Tuple[Path, str]:
     """
     Get or create the model file for a given subject height.
@@ -687,12 +697,30 @@ def get_model_for_height(
     # Construct expected filename
     base_name = f"smpl_humanoid_lower_body_{variant}"
     height_name = f"{base_name}_height_{height_cm}cm"
-    model_path = rescale_dir / f"{height_name}.xml"
+    model_stem = f"{height_name}{'_contact_pads' if contact_pads else ''}"
+    model_path = rescale_dir / f"{model_stem}.xml"
     
     # Robot name for factory
     robot_name = f"smpl_lower_body_{height_cm}cm"
+    if contact_pads:
+        robot_name += "_contact_pads"
     if variant == "adjusted_torque":
         robot_name += "_torque"
+
+    # Prefer the already-generated assets under protomotions/data/assets/mjcf
+    assets_mjcf_dir = (
+        Path(__file__).parent.parent
+        / "protomotions"
+        / "data"
+        / "assets"
+        / "mjcf"
+    )
+    assets_model_path = assets_mjcf_dir / f"{model_stem}.xml"
+    if assets_model_path.exists():
+        console.print(
+            f"✅ Found model for {height_cm}cm in assets: {assets_model_path.name}"
+        )
+        return assets_model_path, robot_name
     
     # Check if model exists in rescale directory
     if model_path.exists():
@@ -717,20 +745,24 @@ def get_model_for_height(
             rescale_dir=rescale_dir,
         )
         
-        if rescaler.run(force_overwrite=False):
-            if model_path.exists():
-                console.print(f"✅ Created model for {height_cm}cm: {model_path.name}")
-                # Also create the robot config dynamically
-                _create_robot_config_for_height(height_cm, variant, robot_name)
-                return model_path, robot_name
-            else:
-                console.print(f"⚠️ Model creation reported success but file not found")
-                # Try to find the model in the assets directory
-                asset_path = Path(__file__).parent.parent / "protomotions" / "data" / "assets" / "mjcf" / f"{height_name}.xml"
-                if asset_path.exists():
-                    console.print(f"✅ Found model in assets directory: {asset_path}")
-                    _create_robot_config_for_height(height_cm, variant, robot_name)
-                    return asset_path, robot_name
+        rescaler.run(force_overwrite=False)
+
+        # After attempting creation (or skipping because files exist), re-check.
+        if model_path.exists():
+            console.print(f"✅ Using model for {height_cm}cm: {model_path.name}")
+            _create_robot_config_for_height(
+                height_cm, variant, robot_name, contact_pads=contact_pads
+            )
+            return model_path, robot_name
+
+        if assets_model_path.exists():
+            console.print(
+                f"✅ Using model for {height_cm}cm in assets: {assets_model_path.name}"
+            )
+            _create_robot_config_for_height(
+                height_cm, variant, robot_name, contact_pads=contact_pads
+            )
+            return assets_model_path, robot_name
     except ImportError as e:
         console.print(f"   Could not import rescaling module: {e}")
     except Exception as e:
@@ -744,7 +776,12 @@ def get_model_for_height(
     return base_model, "smpl_lower_body"
 
 
-def _create_robot_config_for_height(height_cm: int, variant: str, robot_name: str) -> None:
+def _create_robot_config_for_height(
+    height_cm: int,
+    variant: str,
+    robot_name: str,
+    contact_pads: bool = False,
+) -> None:
     """
     Create a robot config for a given height using the factory.
     
@@ -765,6 +802,7 @@ def _create_robot_config_for_height(height_cm: int, variant: str, robot_name: st
             height_cm=height_cm,
             variant=variant,
             asset_root=asset_root,
+            contact_pads=contact_pads,
         )
         
         console.print(f"✅ Created robot config for {height_cm}cm")
@@ -819,9 +857,26 @@ def main(
     pyroki_python: Optional[Path] = typer.Option(
         None, "--pyroki-python", help="Path to PyRoki Python interpreter"
     ),
+    pyroki_urdf_path: Optional[Path] = typer.Option(
+        None,
+        "--pyroki-urdf-path",
+        exists=True,
+        help=(
+            "Optional URDF to use for PyRoki retargeting (e.g. the contact-pad URDF). "
+            "If omitted, PyRoki's script default is used."
+        ),
+    ),
     jax_platform: str = typer.Option(
         "cuda", "--jax-platform",
         help="JAX backend: 'cuda', 'rocm', 'cpu', or '' (auto-detect)"
+    ),
+    contact_pads: bool = typer.Option(
+        False,
+        "--contact-pads/--no-contact-pads",
+        help=(
+            "Use the *_contact_pads MJCF (when available) so conversion/packaging "
+            "matches the smpl_lower_body_170cm_contact_pads robot."
+        ),
     ),
 ) -> None:
     """
@@ -842,6 +897,7 @@ def main(
         model_xml, robot_name = get_model_for_height(
             height_cm=subject_height,
             variant=model_variant,
+            contact_pads=contact_pads,
         )
         console.print(f"\n📏 Subject height: {subject_height}cm")
         console.print(f"🤖 Robot config: {robot_name}")
@@ -868,6 +924,7 @@ def main(
         subject_height_cm=subject_height,
         model_variant=model_variant,
         pyroki_python=pyroki_python,
+        pyroki_urdf_path=pyroki_urdf_path,
         jax_platform=jax_platform,
     )
     

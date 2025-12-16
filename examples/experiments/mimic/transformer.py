@@ -77,7 +77,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
     mimic_early_termination = [
         MimicEarlyTerminationEntry(
             mimic_early_termination_key="max_joint_err",
-            mimic_early_termination_thresh=0.5,
+            mimic_early_termination_thresh=0.25,
             less_than=False,
         )
     ]
@@ -174,11 +174,11 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
 
     env_config: MimicEnvConfig = MimicEnvConfig(
         ref_contact_smooth_window=7,
-        max_episode_length=1000,
+        max_episode_length=10000,
         humanoid_obs=HumanoidObsConfig(
             action_history=ActionHistoryConfig(
                 enabled=True,
-                num_historical_steps=1,
+                num_historical_steps=3,
             ),
         ),
         reward_config=reward_config,
@@ -190,7 +190,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
                 enabled=True,
                 type=FuturePoseType.MAX_COORDS_FUTURE_REL,
                 with_time=True,
-                future_steps=10,
+                future_steps=20,
             ),
         ),
         motion_manager=MimicMotionManagerConfig(
