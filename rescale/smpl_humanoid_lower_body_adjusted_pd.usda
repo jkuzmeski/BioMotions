@@ -492,7 +492,7 @@ def Xform "smpl_humanoid" (
             uniform token drive:rotZ:physics:type = "force"
             float limit:rotX:physics:high = 10
             float limit:rotX:physics:low = -10
-            float limit:rotY:physics:high = 0
+            float limit:rotY:physics:high = 20
             float limit:rotY:physics:low = -20
             float limit:rotZ:physics:high = 5
             float limit:rotZ:physics:low = -5
@@ -660,7 +660,7 @@ def Xform "smpl_humanoid" (
             uniform token drive:rotZ:physics:type = "force"
             float limit:rotX:physics:high = 10
             float limit:rotX:physics:low = -10
-            float limit:rotY:physics:high = 0
+            float limit:rotY:physics:high = 20
             float limit:rotY:physics:low = -20
             float limit:rotZ:physics:high = 5
             float limit:rotZ:physics:low = -5

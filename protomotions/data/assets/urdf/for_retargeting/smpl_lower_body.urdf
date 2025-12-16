@@ -247,7 +247,7 @@
     <child link="L_Toe_pitch_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit lower="-0.35" upper="0" effort="100" velocity="10"/>
+    <limit lower="-0.349066" upper="0.349066" effort="100" velocity="10"/>
   </joint>
   
   <link name="L_Toe">
@@ -497,7 +497,7 @@
     <child link="R_Toe_pitch_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit lower="-0.35" upper="0" effort="100" velocity="10"/>
+    <limit lower="-0.349066" upper="0.349066" effort="100" velocity="10"/>
   </joint>
   
   <link name="R_Toe">

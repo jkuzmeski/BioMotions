@@ -33,7 +33,7 @@
             <geom type="box" pos="0.0225 0.0 -0.0200" size="0.0865 0.04 0.0478" quat="1.0000 0.0000 0.0000 0.0000" density="1000"/>
             <body name="L_Toe" pos="0.1233 0.0000 -0.0550">
               <joint name="L_Toe_x" type="hinge" pos="0 0 0" axis="1 0 0" stiffness="75" damping="8" armature="0.02" range="-10.0000 10.0000"/>
-              <joint name="L_Toe_y" type="hinge" pos="0 0 0" axis="0 1 0" stiffness="75" damping="8" armature="0.02" range="-20.0000 0.0000"/>
+              <joint name="L_Toe_y" type="hinge" pos="0 0 0" axis="0 1 0" stiffness="75" damping="8" armature="0.02" range="-20.0000 20.0000"/>
               <joint name="L_Toe_z" type="hinge" pos="0 0 0" axis="0 0 1" stiffness="75" damping="8" armature="0.02" range="-5.0000 5.0000"/>
               <geom type="box" pos="0.0248 0.0 0.007" size="0.0496 0.04 0.02" quat="1.0000 0.0000 0.0000 0.0000" density="1000"/>
             </body>
@@ -57,7 +57,7 @@
             <geom type="box" pos="0.0225 0.0 -0.0200" size="0.0865 0.04 0.0478" quat="1.0000 0.0000 0.0000 0.0000" density="1000"/>
             <body name="R_Toe" pos="0.1233 0.0000 -0.0550">
               <joint name="R_Toe_x" type="hinge" pos="0 0 0" axis="1 0 0" stiffness="75" damping="8" armature="0.02" range="-10.0000 10.0000"/>
-              <joint name="R_Toe_y" type="hinge" pos="0 0 0" axis="0 1 0" stiffness="75" damping="8" armature="0.02" range="-20.0000 0.0000"/>
+              <joint name="R_Toe_y" type="hinge" pos="0 0 0" axis="0 1 0" stiffness="75" damping="8" armature="0.02" range="-20.0000 20.0000"/>
               <joint name="R_Toe_z" type="hinge" pos="0 0 0" axis="0 0 1" stiffness="75" damping="8" armature="0.02" range="-5.0000 5.0000"/>
               <geom type="box" pos="0.0248 0.0 0.007" size="0.0496 0.04 0.02" quat="1.0000 0.0000 0.0000 0.0000" density="1000"/>
             </body>

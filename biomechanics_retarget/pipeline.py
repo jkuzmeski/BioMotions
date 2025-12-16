@@ -304,7 +304,8 @@ class BiomechanicsPipeline:
                 "--keypoints-folder-path", str(self.config.keypoints_dir),
                 "--output-dir", str(self.config.retargeted_dir),
                 "--source-type", "treadmill",
-                "--no-visualize",
+                "--target-raw-frames", "-1",
+                # "--no-visualize",
                 "--skip-existing",
             ]
             
@@ -336,6 +337,7 @@ class BiomechanicsPipeline:
                 "--keypoints-folder-path", str(self.config.keypoints_dir),
                 "--contacts-dir", str(self.config.contacts_dir),
                 "--source-type", "treadmill",
+                "--target-raw-frames", "-1",
                 "--save-contacts-only",
                 "--skip-existing",
             ]

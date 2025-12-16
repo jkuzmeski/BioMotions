@@ -71,13 +71,16 @@ def load_motion_data(motion_path, source_type, subsample_factor, target_raw_fram
     print(f"Loading motion from: {motion_path}")
     motion_data = onp.load(motion_path, allow_pickle=True).item()
 
-    target_subsampled_frames = len(list(range(0, target_raw_frames, subsample_factor)))
-
     raw_positions = motion_data["positions"]
     raw_orientations = motion_data["orientations"]
     raw_left_foot_contacts = motion_data["left_foot_contacts"]
     raw_right_foot_contacts = motion_data["right_foot_contacts"]
     original_raw_frames = raw_positions.shape[0]
+
+    if target_raw_frames <= 0:
+        target_raw_frames = original_raw_frames
+
+    target_subsampled_frames = len(list(range(0, target_raw_frames, subsample_factor)))
 
     print(f"Original motion length: {original_raw_frames} frames.")
 
@@ -114,9 +117,9 @@ def load_motion_data(motion_path, source_type, subsample_factor, target_raw_fram
             (raw_right_foot_contacts, right_padding), axis=0
         )
 
-    # Process contact labels - average of ankle and toe contacts
-    left_contacts_avg = onp.mean(processed_left_contacts.astype(float), axis=1)[:, None]
-    right_contacts_avg = onp.mean(processed_right_contacts.astype(float), axis=1)[
+    # Process contact labels - maximum of ankle and toe contacts (foot in contact if EITHER is touching)
+    left_contacts_avg = onp.max(processed_left_contacts.astype(float), axis=1)[:, None]
+    right_contacts_avg = onp.max(processed_right_contacts.astype(float), axis=1)[
         :, None
     ]
 
@@ -220,7 +223,7 @@ def foot_contact_cost(
     foot_indices: jnp.ndarray,
     weight: float,
 ) -> jax.Array:
-    """Penalize foot movement and height diff when in contact."""
+    """Penalize foot movement, height diff, and ground penetration when in contact."""
     T_world_root_curr = var_values[var_Ts_world_root_curr]
     T_world_root_prev = var_values[var_Ts_world_root_prev]
     robot_cfg_curr = var_values[var_robot_cfg_curr]
@@ -260,9 +263,18 @@ def foot_contact_cost(
     left_foot_vel = left_foot_curr - left_foot_prev
     right_foot_vel = right_foot_curr - right_foot_prev
 
-    # Z-height consistency
+    # Z-height consistency between ankle and toe
     left_z_diff = left_ankle_curr[2] - left_foot_curr[2]
     right_z_diff = right_ankle_curr[2] - right_foot_curr[2]
+
+    # Ground contact constraint: penalize being ABOVE ground when in contact
+    # Use minimum of ankle and toe z-positions as the lowest point of the foot
+    left_min_z = jnp.minimum(left_ankle_curr[2], left_foot_curr[2])
+    right_min_z = jnp.minimum(right_ankle_curr[2], right_foot_curr[2])
+    
+    # Penalize positive z (above ground) when in contact
+    left_ground_penetration = jnp.maximum(left_min_z, 0.0)
+    right_ground_penetration = jnp.maximum(right_min_z, 0.0)
 
     # Costs
     left_w = left_foot_contact[0]
@@ -276,6 +288,8 @@ def foot_contact_cost(
             right_w * right_foot_vel,
             jnp.array([left_w * left_z_diff]),
             jnp.array([right_w * right_z_diff]),
+            jnp.array([left_w * left_ground_penetration * 5.0]),  # Strong penalty for lifting off ground
+            jnp.array([right_w * right_ground_penetration * 5.0]),
         ]).flatten() * weight
     )
 
