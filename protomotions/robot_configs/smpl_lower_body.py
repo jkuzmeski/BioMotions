@@ -193,7 +193,7 @@ class SmplLowerBodyConfig(RobotConfig):
 
     control: ControlConfig = field(
         default_factory=lambda: ControlConfig(
-            control_type=ControlType.TORQUE,
+            control_type=ControlType.BUILT_IN_PD,
             override_control_info={
                 # Hip joints - highest stiffness for stability
                 ".*_Hip_.*": ControlInfo(
@@ -239,8 +239,8 @@ class SmplLowerBodyConfig(RobotConfig):
                 substeps=2,
             ),
             isaaclab=IsaacLabSimParams(
-                fps=200,
-                decimation=1,
+                fps=120,
+                decimation=4,
                 physx=IsaacLabPhysXParams(
                     num_position_iterations=8,
                     num_velocity_iterations=8,

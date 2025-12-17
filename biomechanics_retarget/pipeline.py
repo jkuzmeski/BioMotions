@@ -301,6 +301,9 @@ class BiomechanicsPipeline:
             env['JAX_TRACEBACK_FILTERING'] = 'off'
             env['JAX_DEFAULT_PREC'] = 'float32'
             
+            # Add NVIDIA paths for Windows
+            self._add_nvidia_paths(env, pyroki_python)
+            
             cmd = [
                 str(pyroki_python),
                 str(retarget_script),
@@ -326,6 +329,7 @@ class BiomechanicsPipeline:
                'AssertionError' in result.stderr:
                 console.print("[yellow]⚠️ CUDA initialization failed, "
                               "retrying with CPU...[/yellow]")
+                console.print(f"[red]Error details:[/red]\n{result.stderr}")
                 env['JAX_PLATFORMS'] = 'cpu'
                 result = subprocess.run(
                     cmd, capture_output=True, text=True, env=env)
@@ -401,6 +405,39 @@ class BiomechanicsPipeline:
             pass
         
         return None
+
+    def _add_nvidia_paths(self, env: dict, python_exe: Path) -> None:
+        """Add NVIDIA library paths to environment PATH for Windows JAX support."""
+        if sys.platform != "win32":
+            return
+            
+        # Assuming python_exe is in Scripts/ or bin/
+        # site-packages is in Lib/site-packages relative to env root
+        env_root = python_exe.parent.parent
+        site_packages = env_root / "Lib" / "site-packages"
+        
+        if not site_packages.exists():
+            return
+            
+        nvidia_dir = site_packages / "nvidia"
+        if not nvidia_dir.exists():
+            return
+            
+        # List of nvidia packages that might have bin dirs
+        pkgs = [
+            "cudnn", "cublas", "cuda_cupti", "cuda_nvcc", 
+            "cuda_runtime", "cufft", "cusolver", "cusparse", "nvjitlink"
+        ]
+        
+        new_paths = []
+        for pkg in pkgs:
+            bin_dir = nvidia_dir / pkg / "bin"
+            if bin_dir.exists():
+                new_paths.append(str(bin_dir))
+        
+        if new_paths:
+            console.print(f"   Adding {len(new_paths)} NVIDIA paths to PATH for JAX")
+            env["PATH"] = os.pathsep.join(new_paths) + os.pathsep + env.get("PATH", "")
     
     def step_convert(self, retargeted_files: Optional[List[Path]] = None) -> List[Path]:
         """Step 4: Convert retargeted motions to ProtoMotions .motion format."""

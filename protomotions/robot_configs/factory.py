@@ -123,6 +123,12 @@ def robot_config(robot_name: str, **updates) -> RobotConfig:
         from protomotions.robot_configs.rigv1 import Rigv1RobotConfig
 
         config = Rigv1RobotConfig()
+    elif robot_name == "lower_body_multisegment":
+        from protomotions.robot_configs.lower_body_multisegment import (
+            LowerBodyMultisegmentConfig,
+        )
+
+        config = LowerBodyMultisegmentConfig()
     else:
         raise ValueError(f"Invalid robot name: {robot_name}")
 
