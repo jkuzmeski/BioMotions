@@ -292,14 +292,15 @@ class Mimic(BaseEnv):
                 self.config.masked_mimic_obs.masked_mimic_target_pose.num_future_steps,
                 num_conditionable_bodies,
                 2,
+                3,
             )
 
             # Use advanced indexing to get the correct time step for each environment
             translation_view = bodies_masks_reshaped[
-                env_indices, first_valid_indices, :, 0
+                env_indices, first_valid_indices, :, 0, :
             ]
             active_translations = (
-                translation_view == 1
+                translation_view.any(dim=-1)
             )  # [num_envs, num_conditionable_bodies]
 
             # Create masks for each time range
@@ -611,11 +612,14 @@ class Mimic(BaseEnv):
                 self.masked_mimic_obs_cb.config.masked_mimic_target_pose.num_future_steps,
                 self.masked_mimic_obs_cb.num_conditionable_bodies,
                 2,
+                3,
             )[:, 0]
-            translation_mask = mask[..., 0].unsqueeze(-1)
-            rotation_mask = mask[..., 1]
+            translation_mask = mask[..., 0, :]
+            rotation_mask = mask[..., 1, 0]
 
-            translation_mask_coeff = translation_mask.float().sum(1).view(-1) + 1e-6
+            translation_mask_coeff = (
+                translation_mask.any(dim=-1).float().sum(1).view(-1) + 1e-6
+            )
             rotation_mask_coeff = rotation_mask.float().sum(1) + 1e-6
 
             active_bodies_ids = self.masked_mimic_obs_cb.conditionable_body_ids

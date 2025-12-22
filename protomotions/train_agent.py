@@ -277,7 +277,7 @@ def create_parser():
     parser.add_argument(
         "--training-max-steps",
         type=int,
-        default=10000000000000,
+        default=20000,
         help="Maximum number of training steps. Default to 'loads of steps'.",
     )
     parser.add_argument(

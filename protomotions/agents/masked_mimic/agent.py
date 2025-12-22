@@ -162,15 +162,15 @@ class MaskedMimic(BaseAgent):
             assert (
                 self.env.mimic_obs_cb.config.mimic_target_pose.num_future_steps
                 == self.expert_env_config.mimic_obs.mimic_target_pose.num_future_steps
-            )
+            ), f"Expert was trained with {self.expert_env_config.mimic_obs.mimic_target_pose.num_future_steps} future steps, but current config has {self.env.mimic_obs_cb.config.mimic_target_pose.num_future_steps}"
             assert (
                 self.env.mimic_obs_cb.config.mimic_target_pose.type
                 == self.expert_env_config.mimic_obs.mimic_target_pose.type
-            )
+            ), f"Expert was trained with {self.expert_env_config.mimic_obs.mimic_target_pose.type} target pose type, but current config has {self.env.mimic_obs_cb.config.mimic_target_pose.type}"
             assert (
                 self.env.mimic_obs_cb.config.mimic_target_pose.with_time
                 == self.expert_env_config.mimic_obs.mimic_target_pose.with_time
-            )
+            ), f"Expert was trained with with_time={self.expert_env_config.mimic_obs.mimic_target_pose.with_time}, but current config has with_time={self.env.mimic_obs_cb.config.mimic_target_pose.with_time}"
 
             # Create the expert model
             ExpertModelConfig = get_class(expert_agent_config.model._target_)

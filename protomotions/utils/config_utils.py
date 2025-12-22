@@ -233,7 +233,7 @@ def apply_config_overrides(
 
         # Set the final field (supports both object attributes and dict keys)
         final_field = field_path[-1]
-        allowed_field_types = [int, float, bool, str, type(None)]
+        allowed_field_types = [int, float, bool, str, type(None), list]
 
         if isinstance(target, dict):
             if final_field not in target:

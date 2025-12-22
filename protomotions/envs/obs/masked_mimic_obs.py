@@ -69,7 +69,7 @@ class MaskedMimicObs:
         # Masks indicating which bodies are visible in each future pose
         self.masked_mimic_target_bodies_masks = torch.zeros(
             self.env.num_envs,
-            self.num_conditionable_bodies * 2 * num_future_steps,
+            self.num_conditionable_bodies * 2 * 3 * num_future_steps,
             dtype=torch.bool,
             device=self.env.device,
         )
@@ -100,6 +100,8 @@ class MaskedMimicObs:
             dtype=torch.float,
             device=self.env.device,
         )
+        
+        self._has_printed_debug_info = False
 
         self.envs_requiring_reset = None
 
@@ -165,16 +167,17 @@ class MaskedMimicObs:
         repeat_mask = torch.rand(num_envs, device=self.env.device) < repeat_mask_prob
         if repeat_mask.any():
             # Get previous masks (last step)
-            single_step_mask_size = self.num_conditionable_bodies * 2
+            single_step_mask_size = self.num_conditionable_bodies * 2 * 3
             previous_masks = self.masked_mimic_target_bodies_masks[
                 env_ids, -single_step_mask_size:
-            ].view(num_envs, self.num_conditionable_bodies, 2)
+            ].view(num_envs, self.num_conditionable_bodies, 2, 3)
 
             # For environments that should repeat, return previous mask
             new_mask = torch.zeros(
                 num_envs,
                 self.num_conditionable_bodies,
                 2,
+                3,
                 dtype=torch.bool,
                 device=self.env.device,
             )
@@ -186,7 +189,7 @@ class MaskedMimicObs:
                 num_new_masks = sample_new_mask.sum().item()
                 new_sampled_masks = self._sample_new_body_masks(num_new_masks)
                 new_mask[sample_new_mask] = new_sampled_masks.view(
-                    num_new_masks, self.num_conditionable_bodies, 2
+                    num_new_masks, self.num_conditionable_bodies, 2, 3
                 )
 
             return new_mask.view(num_envs, -1)
@@ -244,7 +247,15 @@ class MaskedMimicObs:
             fixed_conditioning = (
                 self.joint_masking_config.masked_mimic_fixed_conditioning
             )
-            body_names = [entry.body_name for entry in fixed_conditioning]
+
+            def get_entry_attr(entry, attr):
+                if isinstance(entry, dict):
+                    return entry[attr]
+                return getattr(entry, attr)
+
+            body_names = [
+                get_entry_attr(entry, "body_name") for entry in fixed_conditioning
+            ]
             conditioned_body_ids = build_body_ids_tensor(
                 self._all_body_names, body_names, self.env.device
             ).tolist()
@@ -256,28 +267,68 @@ class MaskedMimicObs:
             for body_index in fixed_body_indices:
                 body_name = self.env.robot_config.trackable_bodies_subset[body_index]
                 conditioned_body_names = [
-                    entry.body_name for entry in fixed_conditioning
+                    get_entry_attr(entry, "body_name") for entry in fixed_conditioning
                 ]
                 constraint_index = conditioned_body_names.index(body_name)
 
                 active_body_ids[:, body_index] = True
-                constraint_states[:, body_index] = fixed_conditioning[
-                    constraint_index
-                ].constraint_state
+                constraint_states[:, body_index] = get_entry_attr(
+                    fixed_conditioning[constraint_index], "constraint_state"
+                )
 
         # Create masks for translation and rotation
-        translation_mask = (constraint_states <= 1) & active_body_ids
-        rotation_mask = (constraint_states >= 1) & active_body_ids
+        # 0: Trans XYZ, 1: Both, 2: Rot, 3: Trans XY
+        trans_mask = (constraint_states <= 1) | (constraint_states == 3)
+        translation_mask = trans_mask & active_body_ids
+        rot_mask = (constraint_states >= 1) & (constraint_states != 3)
+        rotation_mask = rot_mask & active_body_ids
+
+        xyz_mask = torch.ones(
+            num_envs,
+            self.num_conditionable_bodies,
+            3,
+            dtype=torch.bool,
+            device=self.env.device,
+        )
+        # If state is 3 (Trans XY), mask Z (index 2)
+        # Use scatter to properly handle the advanced indexing
+        z_mask_indices = (constraint_states == 3)
+        xyz_mask[:, :, 2] = xyz_mask[:, :, 2] & ~z_mask_indices
 
         new_mask = torch.zeros(
             num_envs,
             self.num_conditionable_bodies,
             2,
+            3,
             dtype=torch.bool,
             device=self.env.device,
         )
-        new_mask[:, :, 0] = translation_mask
-        new_mask[:, :, 1] = rotation_mask
+        new_mask[:, :, 0, :] = translation_mask.unsqueeze(-1) & xyz_mask
+        new_mask[:, :, 1, :] = rotation_mask.unsqueeze(-1)
+
+        if not self._has_printed_debug_info:
+            self._has_printed_debug_info = True
+            print("\n" + "=" * 50)
+            print("MASKED MIMIC OBSERVATION DEBUG INFO")
+            print("=" * 50)
+            print(f"Conditionable Bodies: {self.env.robot_config.trackable_bodies_subset}")
+            
+            # Check first environment
+            env_idx = 0
+            print(f"\nMask Configuration for Environment {env_idx}:")
+            for i, body_name in enumerate(self.env.robot_config.trackable_bodies_subset):
+                # new_mask shape: [num_envs, num_bodies, 2 (Trans/Rot), 3 (XYZ)]
+                trans_mask = new_mask[env_idx, i, 0]
+                rot_mask = new_mask[env_idx, i, 1]
+                
+                is_active = trans_mask.any() or rot_mask.any()
+                status = "ACTIVE" if is_active else "MASKED"
+                
+                print(f"  {body_name:<15} : {status}")
+                if is_active:
+                    print(f"    Translation : X={int(trans_mask[0])}, Y={int(trans_mask[1])}, Z={int(trans_mask[2])}")
+                    print(f"    Rotation    : {int(rot_mask[0])} (All axes)")
+            print("=" * 50 + "\n")
 
         return new_mask.view(num_envs, -1)
 
@@ -310,15 +361,23 @@ class MaskedMimicObs:
         )
 
         obs = self.build_sparse_target_poses(env_ids, future_times).view(
-            num_envs, num_future_steps, self.num_conditionable_bodies, 2, 12
+            num_envs, num_future_steps, self.num_conditionable_bodies, 2, 4, 3
         )
 
         mask = self.masked_mimic_target_bodies_masks[env_ids].view(
-            num_envs, num_future_steps, self.num_conditionable_bodies, 2, 1
+            num_envs, num_future_steps, self.num_conditionable_bodies, 2, 1, 3
         )
 
         masked_obs = obs * mask
-        masked_obs_with_joints = torch.cat((masked_obs, mask), dim=-1).view(
+
+        masked_obs = masked_obs.view(
+            num_envs, num_future_steps, self.num_conditionable_bodies, 2, 12
+        )
+        mask_for_concat = mask.view(
+            num_envs, num_future_steps, self.num_conditionable_bodies, 2, 3
+        )
+
+        masked_obs_with_joints = torch.cat((masked_obs, mask_for_concat), dim=-1).view(
             num_envs, num_future_steps, -1
         )
 
@@ -515,7 +574,7 @@ class MaskedMimicObs:
         Args:
             env_ids: Tensor of environment indices to update masks for
         """
-        single_step_mask_size = self.num_conditionable_bodies * 2
+        single_step_mask_size = self.num_conditionable_bodies * 2 * 3
         num_future_steps = self.target_pose_config.num_future_steps
 
         # Reshape masks to (num_envs, num_future_steps, single_step_mask_size)

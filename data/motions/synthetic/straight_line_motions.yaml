@@ -1,0 +1,53 @@
+# Synthetic straight-line motion files for masked mimic inference
+# These motions contain only pelvis X,Y trajectory data
+# All other fields (rotations, velocities, other bodies) are placeholders
+# Use with constraint_state=3 (Trans XY only) for pelvis conditioning
+
+motions:
+  # 3 meter motions
+  - file: straight_d3.0m_v1.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d3.0m_v1.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d3.0m_v2.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d3.0m_v2.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d3.0m_v3.0ms_h0deg.motion
+    weight: 1.0
+  
+  # 5 meter motions
+  - file: straight_d5.0m_v1.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d5.0m_v1.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d5.0m_v2.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d5.0m_v2.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d5.0m_v3.0ms_h0deg.motion
+    weight: 1.0
+  
+  # 7 meter motions
+  - file: straight_d7.0m_v1.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d7.0m_v1.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d7.0m_v2.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d7.0m_v2.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d7.0m_v3.0ms_h0deg.motion
+    weight: 1.0
+  
+  # 10 meter motions
+  - file: straight_d10.0m_v1.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d10.0m_v1.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d10.0m_v2.0ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d10.0m_v2.5ms_h0deg.motion
+    weight: 1.0
+  - file: straight_d10.0m_v3.0ms_h0deg.motion
+    weight: 1.0

@@ -336,7 +336,7 @@ def impact_force_penalty(
     current_forces: Tensor,
     previous_forces: Tensor,
     indices: Optional[Tensor] = None,
-    threshold: float = 30.0,
+    threshold: float = 15.0,
 ) -> Tensor:
     """Sum of sudden contact force changes above a threshold (impact penalty).
 

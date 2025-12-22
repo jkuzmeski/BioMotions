@@ -77,7 +77,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
     mimic_early_termination = [
         MimicEarlyTerminationEntry(
             mimic_early_termination_key="max_joint_err",
-            mimic_early_termination_thresh=0.25,
+            mimic_early_termination_thresh=0.5,
             less_than=False,
         )
     ]
@@ -90,7 +90,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
             variables={
                 "x": "current_actions - previous_actions",
             },
-            weight=-0.02,
+            weight=-0.1,
         ),
         # Mimic tracking rewards
         "gt_rew": RewardComponentConfig(
@@ -98,7 +98,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
             variables={
                 "x": "current_state.rigid_body_pos",
                 "ref_x": "ref_state.rigid_body_pos",
-                "coefficient": "-100.0",
+                "coefficient": "-10.0",
             },
             weight=0.5,
         ),
@@ -145,7 +145,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
                 "dof_vel": "current_state.dof_vel",
                 "use_torque_squared": "False",
             },
-            weight=-1e-5,
+            weight=-0.001,
             min_value=-0.5,
             zero_during_grace_period=True,
         ),
@@ -174,11 +174,11 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
 
     env_config: MimicEnvConfig = MimicEnvConfig(
         ref_contact_smooth_window=7,
-        max_episode_length=10000,
+        max_episode_length=1000,
         humanoid_obs=HumanoidObsConfig(
             action_history=ActionHistoryConfig(
                 enabled=True,
-                num_historical_steps=3,
+                num_historical_steps=1,
             ),
         ),
         reward_config=reward_config,
@@ -190,7 +190,7 @@ def env_config(robot_cfg: RobotConfig, args: argparse.Namespace) -> MimicEnvConf
                 enabled=True,
                 type=FuturePoseType.MAX_COORDS_FUTURE_REL,
                 with_time=True,
-                future_steps=20,
+                future_steps=10,
             ),
         ),
         motion_manager=MimicMotionManagerConfig(
