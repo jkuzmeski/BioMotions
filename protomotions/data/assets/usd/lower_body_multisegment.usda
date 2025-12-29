@@ -1,0 +1,49 @@
+#usda 1.0
+(
+    defaultPrim = "lower_body_multisegment"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "lower_body_multisegment" (
+    variants = {
+        string Physics = "PhysX"
+        string Sensor = "Sensors"
+    }
+    prepend variantSets = ["Physics", "Sensor"]
+)
+{
+    over "worldBody" (
+        active = false
+    )
+    {
+    }
+    variantSet "Physics" = {
+        "None" (
+            prepend references = @configuration/lower_body_multisegment_base.usd@
+        ) {
+            over "joints" (
+                active = false
+            )
+            {
+            }
+
+        }
+        "PhysX" (
+            prepend payload = @configuration/lower_body_multisegment_physics.usd@
+        ) {
+
+        }
+    }
+    variantSet "Sensor" = {
+        "None" {
+
+        }
+        "Sensors" (
+            prepend payload = @configuration/lower_body_multisegment_sensor.usd@
+        ) {
+
+        }
+    }
+}
+
