@@ -490,7 +490,8 @@ class GenesisSimulator(Simulator):
     def render(self) -> None:
         """Renders the current simulation state."""
         if not self.headless:
-            self._update_camera()
+            if self._follow_camera_target:
+                self._update_camera()
         super().render()
 
     def _update_simulator_markers(

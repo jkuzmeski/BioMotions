@@ -9,7 +9,7 @@ The framework is built on Python and leverages powerful simulation engines and d
 - **Core Technologies:**
     - **Programming Language:** Python (>=3.8)
     - **Deep Learning:** PyTorch, PyTorch Lightning
-    - **Simulation Engines:** NVIDIA Isaac Lab
+    - **Simulation Engines:** NVIDIA Isaac Lab, NVIDIA Newton (beta)
     - **Experiment Tracking:** Weights & Biases (`wandb`)
     - **Configuration:** A custom, robust configuration system inspired by Hydra. It saves fully resolved configurations as pickled objects to ensure reproducibility.
 
@@ -19,6 +19,20 @@ The framework is built on Python and leverages powerful simulation engines and d
     - A modular architecture allowing for custom robots, environments, RL algorithms, and simulators.
     - Sim-to-sim policy transfer and high-fidelity rendering with IsaacSim.
     - Support for procedural scene generation and generative policies.
+
+## NVIDIA Newton Physics Simulator
+
+NVIDIA Newton is a GPU-accelerated physics simulator built on NVIDIA Warp, specifically leveraging MuJoCo Warp. It is currently in a beta phase of development.
+
+-   **Integration**: Newton is fully integrated into ProtoMotions as a selectable simulator backend, alongside IsaacGym, IsaacLab, and Genesis. It can be activated using the `--simulator newton` command-line argument in various training and example scripts.
+-   **Configuration**: Newton-specific simulation parameters are managed through `NewtonSimParams` and `NewtonSimulatorConfig` (located in `protomotions/simulator/newton/config.py`). Robot configurations can also include Newton-specific settings.
+-   **Testing**: A dedicated test suite, `protomotions/tests/test_newton_simulator_fk.py`, is available to validate the Newton installation and its forward kinematics integration. Note that there might be minor differences in results compared to MotionLib.
+-   **Installation**:
+    1.  Clone the Newton repository: `git clone git@github.com:newton-physics/newton.git`
+    2.  Navigate to the Newton directory: `cd newton`
+    3.  Create and activate a virtual environment (e.g., using `uv`): `uv venv` and `. .venv/bin/activate` (or `. .venv\Scripts\activate` on Windows).
+    4.  Install Newton dependencies and then ProtoMotions Newton requirements: `pip install -e .` followed by `uv pip install -r /path/to/protomotions/requirements_newton.txt`. Refer to the official [Newton Installation Guide](https://newton-physics.github.io/newton/guide/installation.html) for complete details.
+-   **Current Status**: As Newton is still in beta, users may encounter physics artifacts. Contributions to improve its fidelity are welcomed.
 
 ## Building and Running
 

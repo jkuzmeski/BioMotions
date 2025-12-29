@@ -1413,7 +1413,8 @@ class IsaacGymSimulator(Simulator):
 
     def render(self) -> None:
         if not self.headless:
-            self._update_camera()
+            if self._follow_camera_target:
+                self._update_camera()
 
             # check for window closed
             if self._gym.query_viewer_has_closed(self._viewer):

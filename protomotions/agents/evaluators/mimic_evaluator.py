@@ -42,6 +42,10 @@ class MimicEvaluator(BaseEvaluator):
         # Base metric keys from config; do not mutate across evaluations
         self.base_eval_keys = config.eval_metric_keys.copy()
 
+        # Track missing extras keys to avoid spamming logs when the simulator becomes unstable
+        # and the env step returns an incomplete extras dict.
+        self._warned_missing_extras_keys = set()
+
     @property
     def motion_lib(self) -> MotionLib:
         """Motion library (from agent)."""
@@ -321,7 +325,15 @@ class MimicEvaluator(BaseEvaluator):
             elif f"raw/{k}" in extras:
                 value = extras[f"raw/{k}"].detach()
             else:
-                raise ValueError(f"Key {k} not found in env.extras")
+                # If the simulator becomes non-finite, the environment may reset early and
+                # return an incomplete extras dict for this step. Skipping these updates is
+                # preferable to hard-crashing evaluation.
+                if k not in self._warned_missing_extras_keys:
+                    self._warned_missing_extras_keys.add(k)
+                    print(
+                        f"[WARN] Missing key '{k}' in env.extras during evaluation; skipping updates for this key."
+                    )
+                continue
 
             metric = value[active_env_ids]  # in case there are more envs than motions
 

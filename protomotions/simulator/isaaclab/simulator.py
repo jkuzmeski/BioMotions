@@ -832,7 +832,8 @@ class IsaacLabSimulator(Simulator):
                 self._perspective_view = PerspectiveViewer()
                 self._init_camera()
             else:
-                self._update_camera()
+                if self._follow_camera_target:
+                    self._update_camera()
         super().render()
 
     def _init_camera(self) -> None:

@@ -1,0 +1,368 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 The ProtoMotions Developers
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""
+IsaacLab and IsaacGym must be imported before torch is imported.
+
+As many modules may import torch internally, it is best practice to simply detect the selected simulator
+at the top and import it right away.
+"""
+
+import os
+import sys
+
+# Add project root to sys.path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Parse arguments first (argparse is safe, doesn't import torch)
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--simulator",
+    type=str,
+    required=True,
+    help="Simulator to use (e.g., 'isaacgym', 'isaaclab', 'newton', 'genesis')",
+)
+parser.add_argument(
+    "--robot",
+    type=str,
+    default="g1",
+    help="Robot to load (e.g., 'g1', 'lower_body_multisegment')",
+)
+parser.add_argument(
+    "--cpu-only",
+    action="store_true",
+    default=False,
+    help="Use CPU only for simulation (experimental, GPU is default)",
+)
+parser.add_argument(
+    "--hover-offset",
+    type=float,
+    default=0.25,
+    help=(
+        "Extra hover height above the nominal standing root height (meters). "
+        "Use this to keep the feet off the ground for visual inspection."
+    ),
+)
+parser.add_argument(
+    "--enable-gravity",
+    action="store_true",
+    default=False,
+    help=(
+        "Enable gravity (default is gravity disabled when possible, "
+        "for hovering)."
+    ),
+)
+parser.add_argument(
+    "--no-pin",
+    action="store_true",
+    default=False,
+    help=(
+        "Do not pin the robot state each frame. "
+        "By default this script pins state to prevent drifting/falling."
+    ),
+)
+parser.add_argument(
+    "--follow-camera",
+    action="store_true",
+    default=False,
+    help=(
+        "Auto-follow the robot with the camera each frame. "
+        "If not set, the camera stays under manual user control."
+    ),
+)
+args = parser.parse_args()
+disable_gravity = not args.enable_gravity
+
+# Import simulator before torch - isaacgym/isaaclab must be imported before torch
+# This also returns AppLauncher if using isaaclab, None otherwise
+from protomotions.utils.simulator_imports import import_simulator_before_torch  # noqa: E402
+
+AppLauncher = import_simulator_before_torch(args.simulator)
+
+# Now safe to import everything else including torch
+from protomotions.simulator.base_simulator.config import SimulatorConfig  # noqa: E402
+from protomotions.robot_configs.base import (  # noqa: E402
+    RobotConfig,
+    RobotAssetConfig,
+    SimulatorParams,
+)
+from protomotions.utils.hydra_replacement import get_class  # noqa: E402
+import torch  # noqa: E402
+
+device = torch.device("cuda:0") if not args.cpu_only else torch.device("cpu")
+
+# Import the simulator factory function
+from protomotions.simulator.factory import simulator_config  # noqa: E402
+from protomotions.simulator.isaacgym.config import IsaacGymSimParams  # noqa: E402
+from protomotions.simulator.isaaclab.config import IsaacLabSimParams  # noqa: E402
+from protomotions.simulator.genesis.config import GenesisSimParams  # noqa: E402
+from protomotions.simulator.newton.config import NewtonSimParams  # noqa: E402
+
+if args.robot == "lower_body_multisegment":
+    from protomotions.robot_configs.lower_body_multisegment import (  # noqa: E402
+        LowerBodyMultisegmentRobotConfig,
+    )
+
+    robot_cfg = LowerBodyMultisegmentRobotConfig()
+else:
+    robot_cfg = RobotConfig(
+        asset=RobotAssetConfig(
+            asset_file_name="mjcf/g1_bm.xml",
+            usd_asset_file_name="usd/g1_bm/g1_bm.usda",
+            usd_bodies_root_prim_path="/World/envs/env_.*/Robot/",
+            disable_gravity=True if disable_gravity else None,
+        ),
+        common_naming_to_robot_body_names={
+            "all_left_foot_bodies": ["left_ankle_roll_link"],
+            "all_right_foot_bodies": ["right_ankle_roll_link"],
+            "all_left_hand_bodies": ["left_rubber_hand"],
+            "all_right_hand_bodies": ["right_rubber_hand"],
+            "head_body_name": ["head"],
+            "torso_body_name": ["torso_link"],
+        },
+        simulation_params=SimulatorParams(
+            isaacgym=IsaacGymSimParams(
+                fps=100,
+                decimation=2,
+                substeps=2,
+            ),
+            isaaclab=IsaacLabSimParams(
+                fps=200,
+                decimation=4,
+            ),
+            genesis=GenesisSimParams(
+                fps=100,
+                decimation=2,
+                substeps=2,
+            ),
+            newton=NewtonSimParams(
+                fps=200,
+                decimation=4,
+            ),
+        ),
+    )
+
+if disable_gravity and (
+    getattr(robot_cfg.asset, "disable_gravity", None) is None
+):
+    # For robot configs that don't explicitly set it, enable
+    # gravity disabling if supported.
+    robot_cfg.asset.disable_gravity = True
+
+print("\n=== Robot Configuration ===")
+print(f"Robot type: {args.robot}")
+print(f"Number of actions: {robot_cfg.number_of_actions}")
+print(f"Number of DOFs: {robot_cfg.kinematic_info.num_dofs}")
+print(f"Number of bodies: {robot_cfg.kinematic_info.num_bodies}")
+print(f"Contact bodies: {robot_cfg.contact_bodies}")
+
+# Extra simulator parameters allow you to pass in additional parameters to the simulator constructor.
+# For example, if you use IsaacLab, you need to pass in the simulation app.
+extra_simulator_params = {}
+if args.simulator == "isaaclab":
+    if not robot_cfg.asset.usd_asset_file_name or not robot_cfg.asset.usd_bodies_root_prim_path:
+        raise ValueError(
+            "IsaacLab requires a USD robot asset. "
+            f"Robot '{args.robot}' does not define RobotAssetConfig.usd_asset_file_name/"
+            "usd_bodies_root_prim_path. Use --simulator newton/genesis/isaacgym, "
+            "or add a USD asset for this robot."
+        )
+    app_launcher_flags = {"headless": False, "device": str(device)}
+    app_launcher = AppLauncher(app_launcher_flags)
+    simulation_app = app_launcher.app
+    extra_simulator_params["simulation_app"] = simulation_app
+
+simulator_cfg: SimulatorConfig = simulator_config(
+    args.simulator,
+    robot_cfg,
+    headless=False,
+    num_envs=4,
+    experiment_name="smpl_humanoid_isaaclab_example",
+)
+SimulatorClass = get_class(simulator_cfg._target_)
+
+print("\n=== Simulator Configuration ===")
+print(f"Simulator type: {args.simulator}")
+print(f"Simulator class: {SimulatorClass.__name__}")
+print(f"Number of environments: {simulator_cfg.num_envs}")
+print(f"Device: {device}")
+print(f"Headless: {simulator_cfg.headless}")
+
+from protomotions.components.terrains.config import TerrainConfig  # noqa: E402
+from protomotions.components.terrains.terrain import Terrain  # noqa: E402
+
+# We always require the surface plane to be defined.
+# In this case, we define a flat terrain.
+terrain_config = TerrainConfig()
+terrain = Terrain(config=terrain_config, num_envs=simulator_cfg.num_envs, device=device)
+
+print("\n=== Terrain Configuration ===")
+print("Terrain type: Flat")
+print(f"Terrain config: {terrain_config}")
+print(f"Number of height points: {terrain.num_height_points}")
+print(
+    f"Terrain dimensions: {terrain_config.map_length * terrain.num_maps}x{terrain_config.map_width * terrain.num_maps}"
+)
+print(
+    f"Height samples: {terrain.height_samples.shape if hasattr(terrain, 'height_samples') else 'N/A'}"
+)
+
+# Create empty scene_lib (no scenes for this tutorial)
+from protomotions.components.scene_lib import SceneLib  # noqa: E402
+
+scene_lib = SceneLib.empty(num_envs=simulator_cfg.num_envs, device=device)
+
+from protomotions.simulator.base_simulator.simulator import Simulator  # noqa: E402
+
+# Create the simulator shell. This is the main class that handles the simulation loop.
+# In the later tutorials, we will use the environment class to wrap the simulator and provide a more user-friendly interface.
+simulator: Simulator = SimulatorClass(
+    config=simulator_cfg,
+    robot_config=robot_cfg,
+    scene_lib=scene_lib,  # Always provide (empty if no scenes)
+    terrain=terrain,
+    device=device,
+    **extra_simulator_params,  # Used to pass in simulation_app for IsaacLab
+)
+
+# Initialize the simulator (two-phase: shell created above, now finalize)
+# Note: Normally Env does this, but here we're using simulator directly
+simulator._initialize_with_markers({})  # Empty markers for this tutorial
+
+# Free camera by default (no per-frame look-at snapping).
+simulator.set_camera_follow_enabled(args.follow_camera)
+
+print("\n=== Simulator Initialization ===")
+print("Simulator initialized successfully")
+print(f"Simulation timestep (dt): {simulator.dt}")
+
+# Get robot default state.
+default_state = simulator.get_default_robot_reset_state()
+
+print("\n=== Robot State Information ===")
+print(f"Default state type: {type(default_state).__name__}")
+print(f"Root positions shape: {default_state.root_pos.shape}")
+print(f"Root rotations shape: {default_state.root_rot.shape}")
+print(f"DOF positions shape: {default_state.dof_pos.shape}")
+print(f"DOF velocities shape: {default_state.dof_vel.shape}")
+
+# Set the robot to a new random position above the ground
+state_device = default_state.root_pos.device
+root_pos = torch.zeros(simulator_cfg.num_envs, 3, device=state_device)
+xy_pos = terrain.sample_valid_locations(simulator_cfg.num_envs).to(
+    state_device
+)
+height = terrain.get_ground_heights(xy_pos).view(-1).to(state_device)
+root_pos[:, :2] = xy_pos
+root_pos[:, 2] = (
+    height
+    + float(robot_cfg.default_root_height)
+    + float(args.hover_offset)
+)
+default_state.root_pos[:] = root_pos
+if default_state.root_vel is not None:
+    default_state.root_vel.zero_()
+if default_state.root_ang_vel is not None:
+    default_state.root_ang_vel.zero_()
+if default_state.dof_vel is not None:
+    default_state.dof_vel.zero_()
+
+print("\n=== Robot Positioning ===")
+print(f"Sampled XY positions shape: {xy_pos.shape}")
+print(f"Ground heights shape: {height.shape}")
+print(f"Final root positions shape: {root_pos.shape}")
+print(f"First environment position: {root_pos[0]}")
+
+# Reset the robots
+simulator.reset_envs(
+    default_state, env_ids=torch.arange(simulator_cfg.num_envs, device=device)
+)
+print("Robots reset to new positions")
+
+# Best-effort: some simulators expose a gravity API we can toggle at runtime.
+# This is especially useful for Newton, where gravity is set on the model.
+if disable_gravity:
+    try:
+        if hasattr(simulator, "model") and hasattr(
+            simulator.model, "set_gravity"
+        ):
+            simulator.model.set_gravity((0.0, 0.0, 0.0))
+            print("Gravity disabled via simulator.model.set_gravity((0,0,0))")
+    except Exception as e:
+        print(f"Warning: could not disable gravity at runtime: {e}")
+
+# Run the simulation loop
+print("\n=== Starting Simulation Loop ===")
+print("This demonstrates basic simulator usage holding a standing pose")
+print("Camera controls:")
+print("  L - start/stop recording")
+print("  ; - cancel recording")
+print("  O - toggle camera target (only with --follow-camera)")
+print("  Q - close simulator")
+
+try:
+    step_count = 0
+    while simulator.is_simulation_running():
+        # Pin the robot at the hover pose so it doesn't fall/drift.
+        if not args.no_pin:
+            simulator.reset_envs(
+                default_state,
+                env_ids=torch.arange(simulator_cfg.num_envs, device=device),
+            )
+
+        # Hold a stable pose: zero actions correspond to the PD target offset
+        # (see simulator's action-to-target mapping).
+        actions = torch.zeros(
+            simulator_cfg.num_envs, robot_cfg.number_of_actions, device=device
+        )
+
+        # Step the simulator forward by one timestep
+        # This applies the actions and advances the physics simulation
+        simulator.step(actions)
+
+        step_count += 1
+
+        # Print information every 100 steps to show what's happening
+        if step_count % 100 == 0:
+            # Get current robot state to show simulation is working
+            current_state = simulator.get_root_state()
+            avg_height = current_state.root_pos[:, 2].mean().item()
+
+            print(f"Step {step_count}:")
+            print(f"  Actions shape: {actions.shape}")
+            print(f"  Actions range: [{actions.min().item():.3f}, {actions.max().item():.3f}]")
+            print(f"  Average robot height: {avg_height:.3f}")
+            print(f"  Root positions shape: {current_state.root_pos.shape}")
+            print(f"  Root rotations shape: {current_state.root_rot.shape}")
+
+except KeyboardInterrupt:
+    print("\nSimulation stopped by user")
+finally:
+    simulator.close()
+
+print("\n=== Tutorial Summary ===")
+print("This tutorial demonstrated:")
+print("1. How to create and configure a robot (RobotConfig)")
+print("2. How to create a simulator configuration")
+print("3. How to create terrain (flat)")
+print("4. How to initialize the simulator")
+print("5. How to get and manipulate robot state")
+print("6. How to run a basic simulation loop holding a pose")
+print("7. How to access simulation data like positions, rotations, etc.")
+print("\nNext: Tutorial 1 shows how to add complex terrain with obstacles!")

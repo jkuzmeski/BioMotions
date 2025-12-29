@@ -253,8 +253,8 @@ class SmplLowerBodyConfig(RobotConfig):
                 substeps=2,
             ),
             newton=NewtonSimParams(
-                fps=120,
-                decimation=4,
+                fps=1000,
+                decimation=5,
             ),
         )
     )

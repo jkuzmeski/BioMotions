@@ -37,13 +37,20 @@ from protomotions.simulator.base_simulator.simulator_state import (
 )
 from protomotions.components.terrains.terrain import Terrain
 from protomotions.simulator.newton.config import NewtonSimulatorConfig
-import openmesh
 import warp as wp
 import newton
 from newton.selection import ArticulationView
 from newton import Contacts
 from newton.sensors import ContactSensor, populate_contacts
 import copy
+
+try:
+    import openmesh  # type: ignore
+
+    _HAS_OPENMESH = True
+except Exception:
+    openmesh = None
+    _HAS_OPENMESH = False
 
 
 wp.config.enable_backward = False
@@ -64,6 +71,39 @@ def convert_to_indexed_mesh(vertices, triangles):
     indexed_triangles = new_indices.reshape(-1, 3)
 
     return unique_points, indexed_triangles
+
+
+def _load_mesh_points_indices(asset_path: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Load a mesh from disk and return (vertices, flattened_triangle_indices).
+
+    Prefers `openmesh.read_trimesh()` when available; otherwise falls back to `trimesh`.
+    """
+
+    if _HAS_OPENMESH:
+        m = openmesh.read_trimesh(asset_path)
+        mesh_points = np.asarray(m.points())
+        mesh_indices = (
+            np.asarray(m.face_vertex_indices(), dtype=np.int32).reshape(-1)
+        )
+        return mesh_points, mesh_indices
+
+    import trimesh
+
+    loaded = trimesh.load(asset_path, force="mesh", process=False)
+    if isinstance(loaded, trimesh.Scene):
+        mesh = loaded.dump(concatenate=True)
+    else:
+        mesh = loaded
+
+    if mesh.faces is None or len(mesh.faces) == 0:
+        raise ValueError(f"No faces found in mesh: {asset_path}")
+
+    if mesh.faces.shape[1] != 3:
+        mesh = mesh.triangulate()
+
+    mesh_points = np.asarray(mesh.vertices)
+    mesh_indices = np.asarray(mesh.faces, dtype=np.int32).reshape(-1)
+    return mesh_points, mesh_indices
 
 
 class NewtonSimulator(Simulator):
@@ -116,7 +156,11 @@ class NewtonSimulator(Simulator):
 
         self.graph = None
         self.use_cuda_graph = False
-        if wp.get_device().is_cuda and wp.is_mempool_enabled(wp.get_device()):
+        if (
+            sys.platform != "win32"
+            and wp.get_device().is_cuda
+            and wp.is_mempool_enabled(wp.get_device())
+        ):
             print("[INFO] Using CUDA graph")
             self.use_cuda_graph = True
             torch_tensor = torch.zeros(
@@ -167,11 +211,11 @@ class NewtonSimulator(Simulator):
         # Replicate robot across.
         # We set env-spacing to 0 so all are aligned in global space.
         builder = newton.ModelBuilder()
-        builder.current_env_group = -1
         self._add_terrain(builder)
         for env_id in range(self.num_envs):
-            builder.current_env_group = env_id
-            builder.add_builder(self.robot, world=env_id)
+            # Build one Newton "world" per environment.
+            builder.begin_world()
+            builder.add_builder(self.robot)
 
             if self.scene_lib.num_scenes() > 0:
                 scene = self.scene_lib.scenes[env_id]
@@ -226,6 +270,8 @@ class NewtonSimulator(Simulator):
                     )  # [num_static_objects, 7]
                     self._static_object_poses.append(env_static_object_poses)
 
+            builder.end_world()
+
         if len(self._static_object_poses) > 0:
             self._static_object_poses = torch.stack(
                 self._static_object_poses, dim=0
@@ -267,11 +313,9 @@ class NewtonSimulator(Simulator):
                             )[0]
                             asset_path = obj.object_path
 
-                            m = openmesh.read_trimesh(asset_path)
-                            mesh_points = np.array(m.points())
-                            mesh_indices = np.array(
-                                m.face_vertex_indices(), dtype=np.int32
-                            ).flatten()
+                            mesh_points, mesh_indices = _load_mesh_points_indices(
+                                asset_path
+                            )
                             # TODO: use vhacd or other form of convex decomposition
                             asset = newton.Mesh(mesh_points, mesh_indices)
                         else:
@@ -488,30 +532,49 @@ class NewtonSimulator(Simulator):
 
     def _setup_sim(self) -> None:
         """Creates simulation."""
-        self.solver = newton.solvers.SolverMuJoCo(
-            self.model,
-            use_mujoco_cpu=self.use_mujoco,
-            solver="newton",
-            # integrator="implicitfast",
-            # njmax=250,
-            # nconmax=250,
-            # iterations=10,
-            # ls_iterations=20,
-            # ls_parallel=True,
-            # cone="pyramidal",
-            # impratio=1
-            integrator="implicitfast",
-            njmax=450,
-            nconmax=300,
-            iterations=100,
-            ls_iterations=50,
-            ls_parallel=True,
-            cone="pyramidal",
-            # contact_stiffness_time_const=0.02,
-            impratio=10.0,
-            default_actuator_gear=None,
-            disable_contacts=False,
-        )
+        # MuJoCo/Newton uses fixed-size buffers. With multiple worlds these can overflow
+        # and produce NaNs; scale conservatively with the number of environments.
+        cfg_sim = self.config.sim
+        njmax_cfg = getattr(cfg_sim, "njmax", None)
+        nconmax_cfg = getattr(cfg_sim, "nconmax", None)
+        if njmax_cfg is None:
+            njmax_per_env = int(getattr(cfg_sim, "njmax_per_env", 150))
+            njmax = max(2500, njmax_per_env * self.num_envs)
+        else:
+            njmax = int(njmax_cfg)
+
+        if nconmax_cfg is None:
+            nconmax_per_env = int(getattr(cfg_sim, "nconmax_per_env", 40))
+            nconmax = max(2000, nconmax_per_env * self.num_envs)
+        else:
+            nconmax = int(nconmax_cfg)
+
+        try:
+            self.solver = newton.solvers.SolverMuJoCo(
+                self.model,
+                use_mujoco_cpu=self.use_mujoco,
+                solver="newton",
+                integrator="implicitfast",
+                njmax=njmax,
+                nconmax=nconmax,
+                iterations=100,
+                ls_iterations=50,
+                ls_parallel=True,
+                cone="pyramidal",
+                impratio=10.0,
+                default_actuator_gear=None,
+                disable_contacts=False,
+            )
+        except RuntimeError as e:
+            msg = str(e)
+            if "Failed to allocate" in msg and "cuda" in msg:
+                raise RuntimeError(
+                    "Warp CUDA OOM while initializing MuJoCo/Newton solver buffers. "
+                    f"Tried njmax={njmax}, nconmax={nconmax} for num_envs={self.num_envs}. "
+                    "Reduce --num-envs, close other GPU apps, or tune NewtonSimParams "
+                    "(sim.njmax/sim.nconmax or sim.njmax_per_env/sim.nconmax_per_env)."
+                ) from e
+            raise
 
         geom_margin = wp.to_torch(self.solver.mjw_model.geom_margin)
         geom_margin[:] = 0.01  # margin for earlier detection
@@ -686,32 +749,50 @@ class NewtonSimulator(Simulator):
             env_ids = torch.arange(self.num_envs, device=self.device)
         env_mask[env_ids] = True
 
-        # Newton expects the state setter to be provided with the states for all envs.
-        # The mask is used to determine which envs to apply the update to.
-        robot_state = self._get_simulator_bodies_state()
-        robot_dof_state = self._get_simulator_dof_state()
-        robot_state.merge_fields_from(robot_dof_state)
+        # Newton expects the state setters to be provided with tensors for all envs.
+        # IMPORTANT: do NOT call _get_simulator_bodies_state() here.
+        # When the simulation becomes unstable, link transforms can contain NaN/Inf and
+        # RobotState's validation will assert, preventing reset/recovery.
+        resetting_all_envs = env_ids.numel() == self.num_envs
 
-        robot_state.root_pos[env_ids] = new_states.root_pos
-        robot_state.root_rot[env_ids] = new_states.root_rot
-        robot_state.root_vel[env_ids] = new_states.root_vel
-        robot_state.root_ang_vel[env_ids] = new_states.root_ang_vel
-        robot_state.dof_pos[env_ids] = new_states.dof_pos
-        robot_state.dof_vel[env_ids] = new_states.dof_vel
+        if resetting_all_envs:
+            # Fast path: overwrite every env from provided reset state, no reads required.
+            root_state = torch.cat([new_states.root_pos, new_states.root_rot], dim=1)
+            root_vel_state = torch.cat(
+                [new_states.root_vel, new_states.root_ang_vel], dim=1
+            )
+            dof_pos = new_states.dof_pos
+            dof_vel = new_states.dof_vel
+        else:
+            # Partial reset: read current root + DOF state (no RobotState construction/validation).
+            root_state = wp.to_torch(
+                self.robot_view.get_root_transforms(self.state_0)
+            ).clone()
+            root_vel_state = wp.to_torch(
+                self.robot_view.get_root_velocities(self.state_0)
+            ).clone()
+            dof_pos = wp.to_torch(
+                self.robot_view.get_dof_positions(self.state_0)
+            ).view(self.num_envs, -1).clone()
+            dof_vel = wp.to_torch(
+                self.robot_view.get_dof_velocities(self.state_0)
+            ).view(self.num_envs, -1).clone()
 
-        root_state = torch.cat([robot_state.root_pos, robot_state.root_rot], dim=1)
-        root_vel_state = torch.cat(
-            [robot_state.root_vel, robot_state.root_ang_vel], dim=1
-        )
+            root_state[env_ids, :3] = new_states.root_pos
+            root_state[env_ids, 3:] = new_states.root_rot
+            root_vel_state[env_ids, :3] = new_states.root_vel
+            root_vel_state[env_ids, 3:] = new_states.root_ang_vel
+            dof_pos[env_ids] = new_states.dof_pos
+            dof_vel[env_ids] = new_states.dof_vel
 
         # Set state_0 using ArticulationView
         self.robot_view.set_root_transforms(self.state_0, root_state, mask=env_mask)
         self.robot_view.set_root_velocities(self.state_0, root_vel_state, mask=env_mask)
         self.robot_view.set_dof_positions(
-            self.state_0, robot_state.dof_pos, mask=env_mask
+            self.state_0, dof_pos, mask=env_mask
         )
         self.robot_view.set_dof_velocities(
-            self.state_0, robot_state.dof_vel, mask=env_mask
+            self.state_0, dof_vel, mask=env_mask
         )
 
         # also update state_1 to match state_0 (following Newton examples like example_robot_policy.py)
@@ -720,10 +801,10 @@ class NewtonSimulator(Simulator):
         self.robot_view.set_root_transforms(self.state_1, root_state, mask=env_mask)
         self.robot_view.set_root_velocities(self.state_1, root_vel_state, mask=env_mask)
         self.robot_view.set_dof_positions(
-            self.state_1, robot_state.dof_pos, mask=env_mask
+            self.state_1, dof_pos, mask=env_mask
         )
         self.robot_view.set_dof_velocities(
-            self.state_1, robot_state.dof_vel, mask=env_mask
+            self.state_1, dof_vel, mask=env_mask
         )
 
         # Clear forces after reset (good practice to avoid residual forces affecting next step)
@@ -1053,7 +1134,7 @@ class NewtonSimulator(Simulator):
             if not self._camera_initialized:
                 self._init_camera()
                 self._camera_initialized = True
-            else:
+            elif self._follow_camera_target:
                 self._update_camera()
 
             any_key_pressed = False

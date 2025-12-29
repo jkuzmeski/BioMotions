@@ -561,30 +561,35 @@ class RobotState(BaseBatchedState):
         self.translate(translation_vecs)
 
     def __post_init__(self):
+        def _assert_finite(name: str, t: torch.Tensor) -> None:
+            finite = torch.isfinite(t)
+            if bool(torch.all(finite)):
+                return
+            nonfinite_count = int((~finite).sum().item())
+            # Avoid formatting the full tensor (can be huge and may hang).
+            flat_bad = (~finite).flatten().nonzero(as_tuple=False)
+            if flat_bad.numel() > 0:
+                bad_flat_idx = int(flat_bad[0].item())
+                bad_val = t.flatten()[bad_flat_idx].item()
+                extra = f", first_bad_flat_idx={bad_flat_idx}, first_bad_val={bad_val}"
+            else:
+                extra = ""
+            raise AssertionError(
+                f"{name} is not finite (shape={tuple(t.shape)}, device={t.device}, dtype={t.dtype}, nonfinite={nonfinite_count}{extra})"
+            )
+
         if self.rigid_body_pos is not None:
-            assert torch.all(
-                torch.isfinite(self.rigid_body_pos)
-            ), f"rigid_body_pos is not finite: {self.rigid_body_pos}"
+            _assert_finite("rigid_body_pos", self.rigid_body_pos)
         if self.rigid_body_rot is not None:
-            assert torch.all(
-                torch.isfinite(self.rigid_body_rot)
-            ), f"rigid_body_rot is not finite: {self.rigid_body_rot}"
+            _assert_finite("rigid_body_rot", self.rigid_body_rot)
         if self.rigid_body_vel is not None:
-            assert torch.all(
-                torch.isfinite(self.rigid_body_vel)
-            ), f"rigid_body_vel is not finite: {self.rigid_body_vel}"
+            _assert_finite("rigid_body_vel", self.rigid_body_vel)
         if self.rigid_body_ang_vel is not None:
-            assert torch.all(
-                torch.isfinite(self.rigid_body_ang_vel)
-            ), f"rigid_body_ang_vel is not finite: {self.rigid_body_ang_vel}"
+            _assert_finite("rigid_body_ang_vel", self.rigid_body_ang_vel)
         if self.dof_pos is not None:
-            assert torch.all(
-                torch.isfinite(self.dof_pos)
-            ), f"dof_pos is not finite: {self.dof_pos}"
+            _assert_finite("dof_pos", self.dof_pos)
         if self.dof_vel is not None:
-            assert torch.all(
-                torch.isfinite(self.dof_vel)
-            ), f"dof_vel is not finite: {self.dof_vel}"
+            _assert_finite("dof_vel", self.dof_vel)
 
 
 @dataclass
@@ -629,22 +634,30 @@ class RootOnlyState(BaseBatchedState):
         return self
 
     def __post_init__(self):
+        def _assert_finite(name: str, t: torch.Tensor) -> None:
+            finite = torch.isfinite(t)
+            if bool(torch.all(finite)):
+                return
+            nonfinite_count = int((~finite).sum().item())
+            flat_bad = (~finite).flatten().nonzero(as_tuple=False)
+            if flat_bad.numel() > 0:
+                bad_flat_idx = int(flat_bad[0].item())
+                bad_val = t.flatten()[bad_flat_idx].item()
+                extra = f", first_bad_flat_idx={bad_flat_idx}, first_bad_val={bad_val}"
+            else:
+                extra = ""
+            raise AssertionError(
+                f"{name} is not finite (shape={tuple(t.shape)}, device={t.device}, dtype={t.dtype}, nonfinite={nonfinite_count}{extra})"
+            )
+
         if self.root_pos is not None:
-            assert torch.all(
-                torch.isfinite(self.root_pos)
-            ), f"root_pos is not finite: {self.root_pos}"
+            _assert_finite("root_pos", self.root_pos)
         if self.root_rot is not None:
-            assert torch.all(
-                torch.isfinite(self.root_rot)
-            ), f"root_rot is not finite: {self.root_rot}"
+            _assert_finite("root_rot", self.root_rot)
         if self.root_vel is not None:
-            assert torch.all(
-                torch.isfinite(self.root_vel)
-            ), f"root_vel is not finite: {self.root_vel}"
+            _assert_finite("root_vel", self.root_vel)
         if self.root_ang_vel is not None:
-            assert torch.all(
-                torch.isfinite(self.root_ang_vel)
-            ), f"root_ang_vel is not finite: {self.root_ang_vel}"
+            _assert_finite("root_ang_vel", self.root_ang_vel)
 
 
 @dataclass

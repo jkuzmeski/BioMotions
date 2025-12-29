@@ -11,3 +11,5 @@ python protomotions/train_agent.py --robot-name smpl_lower_body_170cm  --simulat
 python protomotions/train_agent.py --robot-name smpl_lower_body_170cm --simulator isaaclab --experiment-path examples/experiments/add/mlp.py --experiment-name add_200fps_torque --motion-file biomechanics_retarget\processed_data\S02_long_170_200fps\packaged_data\S02_long.pt --num-envs 4096 --batch-size 16384 --use-wandb
 
 python protomotions/train_agent.py --robot-name smpl_lower_body_170cm_contact_pads --simulator isaaclab --experiment-path examples/experiments/mimic/transformer.py --experiment-name mimic_200fps_torque --motion-file biomechanics_retarget\processed_data\S02_170_long_200fps\packaged_data\S02_long.pt --num-envs 512 --batch-size 2048 --use-wandb
+
+python protomotions/train_agent.py --robot-name smpl_lower_body_170cm_contact_pads --simulator newton --experiment-path examples/experiments/mimic/transformer.py --experiment-name mimic_200fps_torque_newton --motion-file biomechanics_retarget\processed_data\S02_170_long_200fps\packaged_data\S02_long.pt --num-envs 512 --batch-size 2048

@@ -157,6 +157,10 @@ class Simulator(ABC):
         self.user_requested_reset: bool = False
 
         self._camera_target: Dict[str, int] = {"env": 0, "element": 0}
+        # When enabled, simulators keep the camera looking at the current
+        # target every frame. This is useful for demos but prevents free
+        # orbit/rotation in the viewer.
+        self._follow_camera_target: bool = True
         self._show_markers: bool = True
         self._simulation_running: bool = True
 
@@ -185,6 +189,14 @@ class Simulator(ABC):
         self._visualization_markers: Optional[Dict[str, VisualizationMarkerConfig]] = (
             None
         )
+
+    def set_camera_follow_enabled(self, enabled: bool) -> None:
+        """Enable/disable per-frame camera auto-targeting.
+
+        When disabled, the viewer camera is initialized once (simulator-specific)
+        and then left under user control.
+        """
+        self._follow_camera_target = bool(enabled)
 
     def _initialize_with_markers(
         self, visualization_markers: Optional[Dict[str, VisualizationMarkerConfig]]

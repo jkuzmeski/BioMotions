@@ -505,9 +505,26 @@ class BaseEnv:
         self.progress_buf += 1
         self.self_obs_cb.post_physics_step()
 
-        self.compute_observations()
-        self.compute_reward()
-        self.reset_buf[:], self.terminate_buf[:] = self.check_resets_and_terminations()
+        try:
+            self.compute_observations()
+            self.compute_reward()
+            self.reset_buf[:], self.terminate_buf[:] = self.check_resets_and_terminations()
+        except AssertionError as e:
+            # Most commonly triggered by non-finite simulator state (NaN/Inf) during get_robot_state().
+            # Recover by resetting environments immediately so training doesn't hard-crash.
+            # Note: reset() internally recomputes observations from the new, valid state.
+            err_msg = str(e)
+            if " is not finite" in err_msg:
+                err_msg = err_msg.split(":", 1)[0]
+            print(
+                f"[WARN] Non-finite simulator state during post_physics_step; resetting envs. ({err_msg})"
+            )
+            try:
+                self.reset()
+            except Exception:
+                # If reset fails too, surface the original assertion for easier debugging.
+                raise
+            return
 
         if (
             self.motion_manager is not None
@@ -520,10 +537,19 @@ class BaseEnv:
 
         self.extras["terminate"] = self.terminate_buf
 
-        rbs: RobotState = self.simulator.get_robot_state()
-        rbs.translate(-self.respawn_root_offset.clone())
-        for k, _ in rbs.get_shape_mapping(flattened=True).items():
-            self.extras[f"raw/{k}"] = rbs.flatten_bodies(k)
+        try:
+            rbs: RobotState = self.simulator.get_robot_state()
+            rbs.translate(-self.respawn_root_offset.clone())
+            for k, _ in rbs.get_shape_mapping(flattened=True).items():
+                self.extras[f"raw/{k}"] = rbs.flatten_bodies(k)
+        except AssertionError as e:
+            # Same recovery as above, but keep the step moving if logging state fails.
+            err_msg = str(e)
+            if " is not finite" in err_msg:
+                err_msg = err_msg.split(":", 1)[0]
+            print(
+                f"[WARN] Non-finite simulator state while gathering raw extras; skipping raw state. ({err_msg})"
+            )
 
     def user_reset(self):
         """Force environments to reset on next check (triggered by user input)."""

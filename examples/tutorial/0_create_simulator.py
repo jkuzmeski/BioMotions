@@ -31,6 +31,12 @@ parser.add_argument(
     help="Simulator to use (e.g., 'isaacgym', 'isaaclab', 'newton', 'genesis')",
 )
 parser.add_argument(
+    "--robot",
+    type=str,
+    default="g1",
+    help="Robot to load (e.g., 'g1', 'lower_body_multisegment')",
+)
+parser.add_argument(
     "--cpu-only",
     action="store_true",
     default=False,
@@ -63,44 +69,51 @@ from protomotions.simulator.isaaclab.config import IsaacLabSimParams  # noqa: E4
 from protomotions.simulator.genesis.config import GenesisSimParams  # noqa: E402
 from protomotions.simulator.newton.config import NewtonSimParams  # noqa: E402
 
-robot_cfg = RobotConfig(
-    asset=RobotAssetConfig(
-        asset_file_name="mjcf/g1_bm.xml",
-        usd_asset_file_name="usd/g1_bm/g1_bm.usda",
-        usd_bodies_root_prim_path="/World/envs/env_.*/Robot/",
-    ),
-    common_naming_to_robot_body_names={
-        "all_left_foot_bodies": ["left_ankle_roll_link"],
-        "all_right_foot_bodies": ["right_ankle_roll_link"],
-        "all_left_hand_bodies": ["left_rubber_hand"],
-        "all_right_hand_bodies": ["right_rubber_hand"],
-        "head_body_name": ["head"],
-        "torso_body_name": ["torso_link"],
-    },
-    simulation_params=SimulatorParams(
-        isaacgym=IsaacGymSimParams(
-            fps=100,
-            decimation=2,
-            substeps=2,
+if args.robot == "lower_body_multisegment":
+    from protomotions.robot_configs.lower_body_multisegment import (  # noqa: E402
+        LowerBodyMultisegmentRobotConfig,
+    )
+
+    robot_cfg = LowerBodyMultisegmentRobotConfig()
+else:
+    robot_cfg = RobotConfig(
+        asset=RobotAssetConfig(
+            asset_file_name="mjcf/g1_bm.xml",
+            usd_asset_file_name="usd/g1_bm/g1_bm.usda",
+            usd_bodies_root_prim_path="/World/envs/env_.*/Robot/",
         ),
-        isaaclab=IsaacLabSimParams(
-            fps=200,
-            decimation=4,
+        common_naming_to_robot_body_names={
+            "all_left_foot_bodies": ["left_ankle_roll_link"],
+            "all_right_foot_bodies": ["right_ankle_roll_link"],
+            "all_left_hand_bodies": ["left_rubber_hand"],
+            "all_right_hand_bodies": ["right_rubber_hand"],
+            "head_body_name": ["head"],
+            "torso_body_name": ["torso_link"],
+        },
+        simulation_params=SimulatorParams(
+            isaacgym=IsaacGymSimParams(
+                fps=100,
+                decimation=2,
+                substeps=2,
+            ),
+            isaaclab=IsaacLabSimParams(
+                fps=200,
+                decimation=4,
+            ),
+            genesis=GenesisSimParams(
+                fps=100,
+                decimation=2,
+                substeps=2,
+            ),
+            newton=NewtonSimParams(
+                fps=200,
+                decimation=4,
+            ),
         ),
-        genesis=GenesisSimParams(
-            fps=100,
-            decimation=2,
-            substeps=2,
-        ),
-        newton=NewtonSimParams(
-            fps=200,
-            decimation=4,
-        ),
-    ),
-)
+    )
 
 print("\n=== Robot Configuration ===")
-print("Robot type: G1")
+print(f"Robot type: {args.robot}")
 print(f"Number of actions: {robot_cfg.number_of_actions}")
 print(f"Number of DOFs: {robot_cfg.kinematic_info.num_dofs}")
 print(f"Number of bodies: {robot_cfg.kinematic_info.num_bodies}")
@@ -110,6 +123,13 @@ print(f"Contact bodies: {robot_cfg.contact_bodies}")
 # For example, if you use IsaacLab, you need to pass in the simulation app.
 extra_simulator_params = {}
 if args.simulator == "isaaclab":
+    if not robot_cfg.asset.usd_asset_file_name or not robot_cfg.asset.usd_bodies_root_prim_path:
+        raise ValueError(
+            "IsaacLab requires a USD robot asset. "
+            f"Robot '{args.robot}' does not define RobotAssetConfig.usd_asset_file_name/"
+            "usd_bodies_root_prim_path. Use --simulator newton/genesis/isaacgym, "
+            "or add a USD asset for this robot."
+        )
     app_launcher_flags = {"headless": False, "device": str(device)}
     app_launcher = AppLauncher(app_launcher_flags)
     simulation_app = app_launcher.app
@@ -210,7 +230,7 @@ print("Robots reset to new positions")
 
 # Run the simulation loop
 print("\n=== Starting Simulation Loop ===")
-print("This demonstrates basic simulator usage with random actions")
+print("This demonstrates basic simulator usage holding a standing pose")
 print("Camera controls:")
 print("  L - start/stop recording")
 print("  ; - cancel recording")
@@ -220,9 +240,9 @@ print("  Q - close simulator")
 try:
     step_count = 0
     while simulator.is_simulation_running():
-        # Generate random actions for all environments
-        # Actions are position targets
-        actions = torch.randn(
+        # Hold a stable pose: zero actions correspond to the PD target offset
+        # (see simulator's action-to-target mapping).
+        actions = torch.zeros(
             simulator_cfg.num_envs, robot_cfg.number_of_actions, device=device
         )
 
@@ -240,9 +260,7 @@ try:
 
             print(f"Step {step_count}:")
             print(f"  Actions shape: {actions.shape}")
-            print(
-                f"  Actions range: [{actions.min().item():.3f}, {actions.max().item():.3f}]"
-            )
+            print(f"  Actions range: [{actions.min().item():.3f}, {actions.max().item():.3f}]")
             print(f"  Average robot height: {avg_height:.3f}")
             print(f"  Root positions shape: {current_state.root_pos.shape}")
             print(f"  Root rotations shape: {current_state.root_rot.shape}")
@@ -254,11 +272,11 @@ finally:
 
 print("\n=== Tutorial Summary ===")
 print("This tutorial demonstrated:")
-print("1. How to create and configure a robot (SmplRobotConfig)")
+print("1. How to create and configure a robot (RobotConfig)")
 print("2. How to create a simulator configuration")
 print("3. How to create terrain (flat)")
 print("4. How to initialize the simulator")
 print("5. How to get and manipulate robot state")
-print("6. How to run a basic simulation loop with random actions")
+print("6. How to run a basic simulation loop holding a pose")
 print("7. How to access simulation data like positions, rotations, etc.")
 print("\nNext: Tutorial 1 shows how to add complex terrain with obstacles!")
